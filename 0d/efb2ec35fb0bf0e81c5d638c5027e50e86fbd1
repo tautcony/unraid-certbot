@@ -1,0 +1,47 @@
+dev/lib/emhttp.php
+  h_3705811fa4502c 1-641
+  h_3705811fa4502c 642-646
+README.md
+  h_3705811fa4502c 114-124
+.gitignore
+  h_3705811fa4502c 4-6
+dev.sh
+  h_3705811fa4502c 1-148
+dev/README.md
+  h_3705811fa4502c 1-152
+dev/bin/docker
+  h_3705811fa4502c 1-194
+dev/bin/rc.nginx
+  h_3705811fa4502c 1-9
+dev/emhttp/logging.htm
+  h_3705811fa4502c 1-43
+dev/emhttp/plugins/dynamix/include/Wrappers.php
+  h_3705811fa4502c 1-112
+dev/seed.sh
+  h_3705811fa4502c 1-196
+dev/server.php
+  h_3705811fa4502c 1-327
+lint.sh
+  h_3705811fa4502c 20-21,31-34,37
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/event/started
+  h_3705811fa4502c 12-16
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/exec.php
+  h_3705811fa4502c 17-18,23-24,84,86-89
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status.php
+  h_3705811fa4502c 14-50,223-238,244,255,270-271,273,381
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/update.php
+  h_3705811fa4502c 21-24,34-49,52,132,134-135,194
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/scripts/renew.sh
+  h_3705811fa4502c 8,10-13,18-48,54-57,68-88,96,203-205,214,227-232,293-294,296,300,302,345-346,349,367,373,403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0defb2ec35fb0bf0e81c5d638c5027e50e86fbd1",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
