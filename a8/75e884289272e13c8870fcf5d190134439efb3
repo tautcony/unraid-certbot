@@ -1,0 +1,20 @@
+README.md
+  h_3705811fa4502c 5,9,19,26,28,30,32-38,41,45,59,63,69,87,93,95,98-99,103,107,111-112,118,125
+dev/README.md
+  h_3705811fa4502c 3,8,11,19,21,26-29,31-32,37,49,51-55,59,75,81,83,85-86,88,92,94-97,99,103-111,120,126
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/CertStatus.page
+  h_3705811fa4502c 82,86,110,143,178
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/unraid-certbot.page
+  h_3705811fa4502c 30,54,56-57,62,67-69,75-77,83,89-91,102,108,110,118,126-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a875e884289272e13c8870fcf5d190134439efb3",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
