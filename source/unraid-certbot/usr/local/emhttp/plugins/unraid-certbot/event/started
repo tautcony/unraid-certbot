@@ -1,0 +1,31 @@
+#!/bin/bash
+#
+# unraid-certbot - emhttp 事件钩子：阵列启动完成（started）
+#
+# 默认关闭。只有用户在设置页勾选「阵列启动后自动检查一次」才会执行，
+# 因为绝大多数情况下 cron 定时检查已经够用。
+#
+# emhttp 会阻塞等事件脚本返回，所以真正的续期必须丢到后台，
+# 否则会卡住整个启动流程。
+
+PLUGIN="unraid-certbot"
+PLUGIN_DIR="/usr/local/emhttp/plugins/${PLUGIN}"
+CFG_FILE="/boot/config/plugins/${PLUGIN}/${PLUGIN}.cfg"
+
+[ -x "${PLUGIN_DIR}/scripts/renew.sh" ] || exit 0
+
+# 读 RUN_AT_BOOT，只有显式写成 yes 才继续
+run_at_boot="no"
+if [ -f "$CFG_FILE" ]; then
+  v=$(grep -E '^[[:space:]]*RUN_AT_BOOT[[:space:]]*=' "$CFG_FILE" 2>/dev/null \
+      | tail -n1 \
+      | sed -E 's/^[^=]*=[[:space:]]*//' \
+      | tr -d '"'"'"'[:space:]')
+  [ "$v" = "yes" ] && run_at_boot="yes"
+fi
+[ "$run_at_boot" = "yes" ] || exit 0
+
+# 等 Docker 守护进程就绪再跑，失败也无所谓 —— cron 还会照常检查
+( sleep 90; "${PLUGIN_DIR}/scripts/renew.sh" --quiet --trigger=boot ) >/dev/null 2>&1 &
+
+exit 0

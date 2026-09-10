@@ -1,0 +1,148 @@
+Menu="Settings:50"
+Title="Unraid Certbot"
+Icon="certificate"
+---
+<?php
+$cb = 'unraid-certbot';
+require_once "$docroot/plugins/dynamix/include/Wrappers.php";
+require_once "$docroot/plugins/$cb/include/status.php";
+
+$cfg = parse_plugin_cfg($cb);
+$st  = cb_status($cfg);
+
+$healthText = [
+    'ok'      => ['green-text',  '证书正常'],
+    'soon'    => ['orange-text', '即将到期'],
+    'expired' => ['red-text',    '已过期'],
+    'unknown' => ['grey-text',   '尚未签发'],
+][$st['health']];
+
+$missing = [];
+if (!$st['configured']['token'])   $missing[] = 'Cloudflare API Token';
+if (!$st['configured']['email'])   $missing[] = '邮箱';
+if (!$st['configured']['host'])    $missing[] = 'Unraid 主机名';
+if (!$st['configured']['domains']) $missing[] = '域名';
+?>
+
+<?php if ($missing): ?>
+<blockquote class="inline_help">
+<b>还差几项配置：<?=cb_e(implode('、', $missing))?></b><br>
+填好下面的表单并点击 Apply 即可。第一次使用建议先勾选「测试环境」跑通流程，确认无误后再取消勾选正式签发。
+</blockquote>
+<?php else: ?>
+<p>
+当前状态：<span class="<?=$healthText[0]?>"><b><?=$healthText[1]?></b></span>
+<?php if ($st['days'] !== null): ?>
+&nbsp;·&nbsp;<?=cb_days_html($st['days'])?>后到期
+<?php endif; ?>
+&nbsp;·&nbsp;<a href="/Utilities/CertStatus">查看证书详情、续期历史与日志 →</a>
+</p>
+<?php endif; ?>
+
+<form markdown="1" method="POST" action="/update.php" target="progressFrame">
+<input type="hidden" name="#file" value="<?=$cb?>/<?=$cb?>.cfg">
+<input type="hidden" name="#include" value="/plugins/<?=$cb?>/include/update.php">
+
+_(Cloudflare API Token)_:
+: <input type="password" name="CF_API_TOKEN_NEW" id="cb-token" autocomplete="new-password"
+   placeholder="<?=cb_has_token() ? '已配置，留空则保持不变' : '粘贴你的 Cloudflare API Token'?>"
+   spellcheck="false" style="width:60%">
+: <input type="button" value="_(显示)_" onclick="cbToggle('cb-token',this)">
+: <input type="checkbox" name="CF_API_TOKEN_CLEAR" value="yes" id="cb-clear">
+  <label for="cb-clear">_(清除已保存的 Token)_</label>
+: <blockquote class="inline_help">
+在 Cloudflare 后台 <b>My Profile → API Tokens → Create Token</b> 创建，权限选
+<b>Zone → DNS → Edit</b>，Zone Resources 选中要签发的域名。<br>
+Token 以 <code>dns_cloudflare_api_token</code> 形式保存在
+<code>/boot/config/plugins/<?=$cb?>/cloudflare.ini</code>，文件权限 600，不会写进插件配置也不会出现在日志里。
+</blockquote>
+
+_(邮箱)_:
+: <input type="email" name="ACME_EMAIL" value="<?=cb_e($cfg['ACME_EMAIL'])?>" style="width:40%">
+: <blockquote class="inline_help">Let's Encrypt 用它发送证书到期提醒，建议填真实可收信的地址。</blockquote>
+
+_(Unraid 主机名)_:
+: <input type="text" name="UNRAID_HOSTNAME" value="<?=cb_e($cfg['UNRAID_HOSTNAME'])?>" style="width:40%">
+: <blockquote class="inline_help">
+必须和 Unraid 自己的服务器名一致 —— 证书会被写成
+<code>/boot/config/ssl/certs/<b>主机名</b>_unraid_bundle.pem</code>，写错文件名 webGUI 不会加载新证书。<br>
+当前 Unraid 认的名字是 <code><?=cb_e(cb_unraid_name())?></code>。
+</blockquote>
+
+_(域名列表)_:
+: <textarea name="DOMAINS" rows="4" style="width:60%" spellcheck="false"><?=cb_e($cfg['DOMAINS'])?></textarea>
+: <blockquote class="inline_help">
+逗号或换行分隔，例如 <code>example.com, www.example.com</code>。
+<b>第一个域名是主域名</b>，证书目录名和合并出的 bundle 都以它为准；所有域名必须都在同一个 Cloudflare 账号下。<br>
+需要通配符证书就写 <code>*.example.com</code>（DNS-01 验证支持通配符，这是走 Cloudflare 而非 HTTP 验证的主要原因）。
+</blockquote>
+
+_(DNS 传播等待秒数)_:
+: <input type="number" name="PROPAGATION" value="<?=cb_e($cfg['PROPAGATION'])?>" min="10" max="900" style="width:100px">
+: <blockquote class="inline_help">
+certbot 添加 DNS 记录后等待多久再向 Let's Encrypt 确认。默认 60 秒；如果经常验证失败可以调到 60–120。
+</blockquote>
+
+_(证书存储目录)_:
+: <input type="text" name="CERT_DIR" value="<?=cb_e($cfg['CERT_DIR'])?>" style="width:60%">
+: <blockquote class="inline_help">
+certbot 的账号、证书、续期配置都放这里。默认 <code>/boot/config/letsencrypt</code>，
+放在 flash 上的好处是<b>阵列没启动时也能续期</b>（webGUI 出问题时往往正是这种情况）。<br>
+改成 <code>/mnt/user/appdata/letsencrypt</code> 可以避免写 U 盘，但那样必须先把阵列起来。
+</blockquote>
+
+_(自动续期频率)_:
+: <select name="SCHEDULE">
+  <?=mk_option($cfg['SCHEDULE'], 'daily',   _('每天检查一次（推荐）'))?>
+  <?=mk_option($cfg['SCHEDULE'], 'weekly',  _('每周检查一次'))?>
+  <?=mk_option($cfg['SCHEDULE'], 'monthly', _('每月检查一次'))?>
+  <?=mk_option($cfg['SCHEDULE'], 'off',     _('关闭自动续期'))?>
+  </select>
+: <blockquote class="inline_help">
+只是「多久检查一次」，不是「多久续一次」—— certbot 自己判断剩余有效期是否小于 30 天，没到期会直接跳过。
+</blockquote>
+
+_(阵列启动后自动检查)_:
+: <input type="hidden" name="RUN_AT_BOOT" value="no">
+  <input type="checkbox" name="RUN_AT_BOOT" value="yes" id="cb-boot" <?=cb_bool($cfg['RUN_AT_BOOT']) ? 'checked' : ''?>>
+  <label for="cb-boot">_(阵列启动完成后延迟 90 秒跑一次检查)_</label>
+: <blockquote class="inline_help">
+默认关闭。适合「证书过期导致 webGUI 报警、重启后希望自动修好」的场景；平时定时任务已经足够。
+</blockquote>
+
+_(更新后重启 nginx)_:
+: <input type="hidden" name="RESTART_NGINX" value="no">
+  <input type="checkbox" name="RESTART_NGINX" value="yes" id="cb-restart" <?=cb_bool($cfg['RESTART_NGINX']) ? 'checked' : ''?>>
+  <label for="cb-restart">_(证书变化后自动重启 Unraid Web 管理服务)_</label>
+: <blockquote class="inline_help">
+证书内容没变化时不会重启（脚本会比较合并结果）。重启会让当前 webGUI 会话短暂中断几秒。
+</blockquote>
+
+_(测试环境)_:
+: <input type="hidden" name="STAGING" value="no">
+  <input type="checkbox" name="STAGING" value="yes" id="cb-staging" <?=cb_bool($cfg['STAGING']) ? 'checked' : ''?>>
+  <label for="cb-staging">_(使用 Let's Encrypt 测试环境)_</label>
+: <blockquote class="inline_help">
+测试环境有宽松得多的速率限制，适合首次验证配置，但<b>签出的证书不被浏览器信任</b>。
+确认流程能跑通后请取消勾选，再执行一次「强制续期」拿正式证书。
+</blockquote>
+
+: <input type="submit" name="#apply" value="_(应用)_" disabled>
+: <input type="button" value="_(立即检查并续期)_" onclick="cbRun('renew')">
+: <input type="button" value="_(强制续期)_" onclick="cbRun('force')">
+
+</form>
+
+<script>
+function cbToggle(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var show = el.type === 'password';
+  el.type = show ? 'text' : 'password';
+  btn.value = show ? '<?=_('隐藏')?>' : '<?=_('显示')?>';
+}
+function cbRun(action) {
+  var title = action === 'force' ? '<?=_('强制续期')?>' : '<?=_('检查并续期')?>';
+  openBox('/plugins/<?=$cb?>/include/exec.php?action=' + action, title, 800, 560);
+}
+</script>

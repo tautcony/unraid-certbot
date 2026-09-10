@@ -1,0 +1,9 @@
+/build/
+/dist/
+
+*.bak
+*.tmp
+
+cloudflare.ini
+.cloudflare.ini
+.env

@@ -1,0 +1,80 @@
+<?xml version='1.0' standalone='yes'?>
+<!DOCTYPE PLUGIN [
+<!ENTITY name      "unraid-certbot">
+<!ENTITY author    "tautcony">
+<!ENTITY version   "2026.09.10">
+<!ENTITY launch    "Settings/UnraidCertbot">
+<!ENTITY github    "tautcony/unraid-certbot">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/master/&name;.plg">
+<!ENTITY pkgfile   "&name;-&version;-noarch-1.txz">
+]>
+
+<PLUGIN name="&name;"
+        author="&author;"
+        version="&version;"
+        launch="&launch;"
+        pluginURL="&pluginURL;"
+        icon="certificate"
+        min="6.9.0"
+        project="https://github.com/&github;">
+
+<CHANGES>
+###2026.09.10
+- 首个版本：Cloudflare DNS-01 验证，为 webGUI 签发并续期 Let's Encrypt 证书
+- 设置页配置 Token / 邮箱 / 主机名 / 域名 / 存储目录 / 续期频率
+- 状态页展示证书详情、续期历史与运行日志，支持手动与强制续期
+- 卸载保留证书与配置
+</CHANGES>
+
+<FILE Run="/bin/bash">
+<INLINE>
+mkdir -p /boot/config/plugins/&name;
+[ -f /boot/config/plugins/&name;/cloudflare.ini ] &amp;&amp; chmod 600 /boot/config/plugins/&name;/cloudflare.ini
+exit 0
+</INLINE>
+</FILE>
+
+<FILE Name="/boot/config/plugins/&name;/&pkgfile;" Run="upgradepkg --install-new">
+<URL>https://github.com/&github;/releases/download/&version;/&pkgfile;</URL>
+<MD5>08bcb9cc58dea25cb5288803b7f74a8d</MD5>
+<SHA256>0717b13eb5abb130dbeb6873746343177f389799e596f78dbde72c7b22cd9860</SHA256>
+</FILE>
+
+<FILE Run="/bin/bash">
+<INLINE>
+P=/usr/local/emhttp/plugins/&name;
+MARKER=/boot/config/plugins/&name;/installed.version
+if [ -f "$MARKER" ]; then
+  ACTION="升级"
+else
+  ACTION="安装"
+fi
+printf '%s\n' "&version;" > "$MARKER" 2>/dev/null
+
+chmod 0755 "$P"/scripts/*.sh "$P"/event/* 2>/dev/null
+chmod 0644 "$P"/*.page "$P"/default.cfg 2>/dev/null
+mkdir -p /boot/config/letsencrypt
+chmod 700 /boot/config/letsencrypt 2>/dev/null
+[ -f /boot/config/plugins/&name;/cloudflare.ini ] &amp;&amp; chmod 600 /boot/config/plugins/&name;/cloudflare.ini
+/usr/local/sbin/update_cron 2>/dev/null
+
+echo "&name; ${ACTION}完成，请到 Settings → Unraid Certbot 配置"
+exit 0
+</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+rm -f /boot/config/plugins/&name;/*.cron
+/usr/local/sbin/update_cron 2>/dev/null
+pkill -f "plugins/&name;/scripts/renew.sh" 2>/dev/null
+rm -rf /var/run/&name;.lock.d
+removepkg &name; 2>/dev/null
+rm -rf /usr/local/emhttp/plugins/&name;
+
+echo "&name; 已卸载，证书与配置已保留（/boot/config/plugins/&name;、/boot/config/letsencrypt）"
+exit 0
+</INLINE>
+</FILE>
+
+</PLUGIN>

@@ -1,0 +1,93 @@
+#!/bin/bash
+#
+# 静态检查。本地和 CI 共用同一份，避免两边命令漂移。
+#
+#   ./lint.sh
+#
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$ROOT/source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot"
+FAILED=0
+
+ok()   { printf '  ok   %s\n' "$1"; }
+bad()  { printf '  FAIL %s\n' "$1"; FAILED=1; }
+skip() { printf '  --   %s（未安装，跳过）\n' "$1"; }
+
+rel() { printf '%s' "${1#"$ROOT"/}"; }
+
+echo "== bash =="
+for f in "$ROOT"/build.sh "$ROOT"/lint.sh "$PLUGIN_DIR"/scripts/*.sh "$PLUGIN_DIR"/event/*; do
+  [ -f "$f" ] || continue
+  if bash -n "$f" 2>/dev/null; then
+    ok "$(rel "$f")"
+  else
+    bad "$(rel "$f")"
+    bash -n "$f"
+  fi
+done
+
+echo "== php =="
+if command -v php >/dev/null 2>&1; then
+  for f in "$PLUGIN_DIR"/include/*.php; do
+    [ -f "$f" ] || continue
+    if php -l "$f" >/dev/null 2>&1; then
+      ok "$(rel "$f")"
+    else
+      bad "$(rel "$f")"
+      php -l "$f"
+    fi
+  done
+else
+  skip php
+fi
+
+echo "== xml =="
+if command -v xmllint >/dev/null 2>&1; then
+  if xmllint --noout "$ROOT/unraid-certbot.plg" 2>/dev/null; then
+    ok "unraid-certbot.plg"
+  else
+    bad "unraid-certbot.plg"
+    xmllint --noout "$ROOT/unraid-certbot.plg"
+  fi
+else
+  skip xmllint
+fi
+
+# xmllint 只检查 XML 是否合法，不展开实体。
+# .plg 里全是 &name; 这类实体，实体写错会导致 Unraid 装出来的路径是空的，
+# 所以这里按 Unraid 自己的方式（simplexml + LIBXML_NOCDATA）解析一遍。
+if command -v php >/dev/null 2>&1; then
+  echo "== plg 实体 =="
+  php -r '
+    $f = $argv[1];
+    $x = @simplexml_load_file($f, null, LIBXML_NOCDATA);
+    if ($x === false) { fwrite(STDERR, "  解析失败\n"); exit(1); }
+    $err = 0;
+    foreach (["name", "version", "launch", "pluginURL"] as $a) {
+      if (trim((string)$x[$a]) === "") { fwrite(STDERR, "  属性 $a 展开后为空\n"); $err = 1; }
+    }
+    $pkg = null;
+    foreach ($x->FILE as $file) {
+      if (isset($file->URL)) { $pkg = $file; }
+    }
+    if ($pkg === null) { fwrite(STDERR, "  没有找到带 <URL> 的 FILE 块\n"); exit(1); }
+    if (strpos((string)$pkg["Name"], "unraid-certbot") === false) {
+      fwrite(STDERR, "  包路径没有展开：" . $pkg["Name"] . "\n"); $err = 1;
+    }
+    $md5 = trim((string)$pkg->MD5);
+    if ($md5 !== "" && !preg_match("/^[0-9a-f]{32}$/", $md5)) {
+      fwrite(STDERR, "  MD5 格式不对：$md5\n"); $err = 1;
+    }
+    if ($err) exit(1);
+    printf("  ok   name=%s version=%s\n", $x["name"], $x["version"]);
+  ' "$ROOT/unraid-certbot.plg" || FAILED=1
+fi
+
+echo
+if [ "$FAILED" -eq 0 ]; then
+  echo "全部通过"
+else
+  echo "有检查未通过"
+fi
+exit "$FAILED"

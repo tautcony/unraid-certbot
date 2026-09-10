@@ -1,0 +1,132 @@
+name: release
+
+# 推送形如 2026.09.10 的 tag 即触发发布。
+# 版本号只从 tag 取，不读仓库里的 VERSION —— 避免二者不一致。
+on:
+  push:
+    tags:
+      - '[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]'
+
+permissions:
+  contents: write
+
+env:
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 最后要把 .plg 提交回默认分支，需要完整历史
+          fetch-depth: 0
+
+      - name: 安装依赖
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils xz-utils
+
+      - name: 静态检查
+        run: ./lint.sh
+
+      - name: 打包
+        run: ./build.sh "${GITHUB_REF_NAME}"
+
+      - name: 校验产物
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          pkg="dist/unraid-certbot-${version}-noarch-1.txz"
+          [ -f "$pkg" ] || { echo "::error::没有产出 $pkg"; exit 1; }
+
+          md5="$(md5sum "$pkg" | cut -d' ' -f1)"
+          sha="$(sha256sum "$pkg" | cut -d' ' -f1)"
+
+          # 校验和写错会导致 Unraid 装不上并把 .plg 丢进 plugins-error/，
+          # 所以发布前对一遍，别等用户踩
+          grep -q "<MD5>${md5}</MD5>" unraid-certbot.plg \
+            || { echo "::error::.plg 里的 MD5 与实际包不符"; exit 1; }
+          grep -q "<SHA256>${sha}</SHA256>" unraid-certbot.plg \
+            || { echo "::error::.plg 里的 SHA256 与实际包不符"; exit 1; }
+          grep -q "releases/download/${version}/" unraid-certbot.plg \
+            || { echo "::error::.plg 里的下载地址没有指向本次 tag"; exit 1; }
+
+          echo "校验和一致：$md5"
+
+      - name: 创建 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          pkg="dist/unraid-certbot-${version}-noarch-1.txz"
+
+          # 从 .plg 的 CHANGES 里抽出本次版本的更新说明
+          awk -v v="$version" '
+            index($0, "###" v) == 1 { capture = 1; next }
+            /^###/          { capture = 0 }
+            /^<\/CHANGES>/  { capture = 0 }
+            capture { print }
+          ' unraid-certbot.plg > /tmp/notes.md
+
+          if [ ! -s /tmp/notes.md ]; then
+            echo "unraid-certbot ${version}" > /tmp/notes.md
+          fi
+
+          cat >> /tmp/notes.md <<EOF
+
+          ## 安装
+
+          \`\`\`
+          plugin install https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/master/unraid-certbot.plg
+          \`\`\`
+          EOF
+
+          # 重跑同一个 tag 时 release 可能已存在，退化为上传覆盖
+          if gh release view "$version" >/dev/null 2>&1; then
+            gh release upload "$version" "$pkg" --clobber
+          else
+            gh release create "$version" \
+              --title "unraid-certbot ${version}" \
+              --notes-file /tmp/notes.md \
+              "$pkg"
+          fi
+
+      - name: 把更新后的 .plg 提交回默认分支
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+
+          # 此刻处于 detached HEAD（checkout 的是 tag）。
+          # build.sh 已把版本号与校验和写进工作区的 .plg，先挪到工作区外，
+          # 再切到默认分支的最新提交放回去 —— 这样即使 tag 之后默认分支上
+          # 又有了新提交，也不会撞上 non-fast-forward。
+          cp unraid-certbot.plg /tmp/unraid-certbot.plg
+          cp VERSION             /tmp/VERSION
+
+          git fetch origin "$DEFAULT_BRANCH"
+          git checkout -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
+
+          cp /tmp/unraid-certbot.plg unraid-certbot.plg
+          cp /tmp/VERSION             VERSION
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add unraid-certbot.plg VERSION
+          if git diff --cached --quiet; then
+            echo ".plg 无变化，跳过提交"
+            exit 0
+          fi
+
+          git commit -m "release: ${version}"
+          git push origin "$DEFAULT_BRANCH"
+
+      - name: 发布结果
+        run: |
+          echo "### unraid-certbot ${GITHUB_REF_NAME} 已发布" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "安装地址：" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "plugin install https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/master/unraid-certbot.plg" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
