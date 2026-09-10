@@ -111,6 +111,17 @@ crontab -l -c /etc/cron.d | grep unraid-certbot
 
 命令会生成 `dist/unraid-certbot-<版本>-noarch-1.txz`，并将版本号及 MD5/SHA256 校验和写入 `unraid-certbot.plg`。
 
+### 本地调试
+
+`./dev.sh` 会搭出一份沙箱（`dev/run/`）并启动预览服务器，用于在开发机上检查界面和流程。
+
+```bash
+./dev.sh                 # 初始化沙箱并启动预览：http://127.0.0.1:8080
+./dev.sh status          # 在沙箱里执行 renew.sh --status
+./dev.sh renew --force   # 在沙箱里跑一次强制续期（假 docker 现场签自签证书）
+./dev.sh reset           # 重建沙箱
+```
+
 ### 发布
 
 发布由 `.github/workflows/release.yml` 自动执行。触发条件为推送格式为 `YYYY.MM.DD` 的 tag：

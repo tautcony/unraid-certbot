@@ -1,0 +1,43 @@
+<!--
+  unraid-certbot 本地调试用的 logging.htm 仿真。
+
+  真机上这个文件由 Unraid 提供（/usr/local/emhttp/logging.htm），include/exec.php
+  会把它 readfile() 进输出页面，然后不断输出 <script>addLog("...")</script> 滚动日志。
+  这里按 Unraid 的约定实现一份等价版本：等宽小字号、深色底、底部一个关闭按钮。
+-->
+<style>
+  html, body { margin: 0; padding: 0; background: #1d1b1b; }
+  body {
+    color: #f2f2f2;
+    font-family: bitstream, Menlo, Consolas, "Courier New", monospace;
+    font-size: 12px; line-height: 1.7; padding: 10px 12px;
+  }
+  #log { white-space: pre-wrap; word-break: break-all; }
+  #log .err { color: #ff9e9e; }
+  #log .ok  { color: #7ee787; }
+  .logLine { font-family: inherit; }
+  button.logLine {
+    margin-top: 10px; padding: 4px 12px; cursor: pointer;
+    color: #ff8c2f; background: transparent; border-radius: 4px;
+    border: 1px solid #ff8c2f; font-family: inherit; font-size: 12px;
+  }
+  button.logLine:hover { color: #fff; background: linear-gradient(90deg, #e22828, #ff8c2f); border-color: transparent; }
+</style>
+<div id="log"></div>
+<script>
+function addLog(logLine) {
+  var box = document.getElementById('log');
+  if (!box) return;
+  var text = (logLine === undefined || logLine === null) ? '' : String(logLine);
+  var cls = /❌|失败|错误/.test(text) ? 'err' : (/✅|完成/.test(text) ? 'ok' : '');
+  box.insertAdjacentHTML('beforeend', '<div' + (cls ? ' class="' + cls + '"' : '') + '>' + text + '</div>');
+  window.scrollTo(0, document.body.scrollHeight);
+}
+function addCloseButton() {
+  addLog("<button class='logLine' type='button' onclick='closeBox()'>关闭</button>");
+}
+function closeBox() {
+  if (window.parent && typeof parent.cbDevCloseBox === 'function') parent.cbDevCloseBox();
+}
+document.addEventListener('DOMContentLoaded', addCloseButton);
+</script>

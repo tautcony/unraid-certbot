@@ -5,35 +5,56 @@
 # 用 certbot/dns-cloudflare 容器通过 Cloudflare DNS-01 验证签发/续期证书，
 # 然后把 fullchain + privkey 合并成 Unraid webGUI 认的 bundle 文件。
 #
-# 用法：
-#   renew.sh [--force] [--quiet] [--staging] [--trigger=NAME] [--status]
+# 用法与退出码见 --help（或文件末尾的 usage 函数）。
 #
-#   --force        强制续期（certbot --force-renewal），忽略到期时间
-#   --quiet        只写日志文件，不输出到 stdout（cron 用）
-#   --staging      本次使用 Let's Encrypt 测试环境（不产生可信证书，仅用于验证流程）
-#   --trigger=NAME 记录到历史里的触发来源：manual / cron / boot / webgui
-#   --status       只打印当前状态，不做任何变更
-#
-# 退出码：
-#   0  成功（含"证书未到期/未变化"）
-#   1  配置错误
-#   2  certbot 执行失败
-#   3  已有实例在运行
-#   4  Docker 不可用
+# 本地调试：
+#   设置 CB_DEV_ROOT 后，所有绝对路径都会映射到该沙箱目录下，不会碰宿主机真实文件；
+#   CB_DOCKER 可以把 docker 换成 dev/bin/docker 这个不联网的假实现。
+#   两者都由 dev.sh 自动导出，细节见 dev/README.md。
 #
 set -uo pipefail
 
 PLUGIN="unraid-certbot"
-PLUGIN_DIR="/usr/local/emhttp/plugins/${PLUGIN}"
-CFG_DIR="/boot/config/plugins/${PLUGIN}"
+IMAGE="certbot/dns-cloudflare"
+STAGING_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
+
+# ---------------------------------------------------------------------------
+# 路径解析
+#
+# 生产环境（Unraid）不设置 CB_DEV_ROOT，这里算出来的就是系统真实路径，行为与改造前一致。
+# ---------------------------------------------------------------------------
+
+DEV_ROOT="${CB_DEV_ROOT:-}"
+
+# 把绝对路径映射到沙箱根下；已经在沙箱内的路径原样返回，避免重复加前缀
+syspath() {
+  if [ -z "${1:-}" ]; then
+    printf ''
+    return 0
+  fi
+  if [ -z "$DEV_ROOT" ]; then
+    printf '%s' "$1"
+    return 0
+  fi
+  local root="${DEV_ROOT%/}"
+  case "$1" in
+    "$root"|"$root"/*) printf '%s' "$1" ;;
+    /*)                printf '%s%s' "$root" "$1" ;;
+    *)                 printf '%s/%s' "$root" "$1" ;;
+  esac
+}
+
+PLUGIN_DIR="$(syspath "/usr/local/emhttp/plugins/${PLUGIN}")"
+CFG_DIR="$(syspath "/boot/config/plugins/${PLUGIN}")"
 CFG_FILE="${CFG_DIR}/${PLUGIN}.cfg"
 DEFAULT_CFG="${PLUGIN_DIR}/default.cfg"
 CRED_FILE="${CFG_DIR}/cloudflare.ini"
 LOG_FILE="${CFG_DIR}/certbot.log"
 HISTORY_FILE="${CFG_DIR}/history.tsv"
-LOCK_DIR="/var/run/${PLUGIN}.lock.d"
-IMAGE="certbot/dns-cloudflare"
-STAGING_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
+LOCK_DIR="$(syspath "/var/run/${PLUGIN}.lock.d")"
+SSL_CERTS_DIR="$(syspath "/boot/config/ssl/certs")"
+NGINX_RC="$(syspath "/etc/rc.d/rc.nginx")"
+DOCKER="${CB_DOCKER:-docker}"
 
 MAX_LOG_BYTES=1048576   # 1 MiB，超过则截断保留后半
 MAX_HISTORY_LINES=200
@@ -44,6 +65,27 @@ STAGING_OVERRIDE="no"
 TRIGGER="manual"
 STATUS_ONLY="no"
 
+usage() {
+  cat <<'USAGE'
+用法：
+  renew.sh [--force] [--quiet] [--staging] [--trigger=NAME] [--status]
+
+  --force        强制续期（certbot --force-renewal），忽略到期时间
+  --quiet        只写日志文件，不输出到 stdout（cron 用）
+  --staging      本次使用 Let's Encrypt 测试环境（不产生可信证书，仅用于验证流程）
+  --trigger=NAME 记录到历史里的触发来源：manual / cron / boot / webgui
+  --status       只打印当前状态，不做任何变更
+  -h, --help     显示本帮助
+
+退出码：
+  0  成功（含"证书未到期/未变化"）
+  1  配置错误
+  2  certbot 执行失败
+  3  已有实例在运行
+  4  Docker 不可用
+USAGE
+}
+
 for arg in "$@"; do
   case "$arg" in
     --force)     FORCE="yes" ;;
@@ -51,7 +93,7 @@ for arg in "$@"; do
     --staging)   STAGING_OVERRIDE="yes" ;;
     --status)    STATUS_ONLY="yes" ;;
     --trigger=*) TRIGGER="${arg#*=}" ;;
-    -h|--help)   sed -n '2,25p' "$0"; exit 0 ;;
+    -h|--help)   usage; exit 0 ;;
     *)           echo "未知参数: $arg" >&2; exit 1 ;;
   esac
 done
@@ -158,6 +200,9 @@ load_cfg
 : "${RESTART_NGINX:=yes}"
 : "${STAGING:=no}"
 
+# 证书目录来自配置文件，也需要套用沙箱前缀（本地调试时它同样指向 /boot 下）
+CERT_DIR="$(syspath "$CERT_DIR")"
+
 [ "$STAGING_OVERRIDE" = "yes" ] && STAGING="yes"
 
 # ---------------------------------------------------------------------------
@@ -166,6 +211,7 @@ load_cfg
 
 if [ "$STATUS_ONLY" = "yes" ]; then
   primary=$(printf '%s' "$DOMAINS" | tr ',' '\n' | tr -s '[:space:]' '\n' | sed '/^$/d' | head -n1)
+  echo "运行模式    : $([ -n "$DEV_ROOT" ] && echo "本地沙箱 ${DEV_ROOT}" || echo 'Unraid 生产环境')"
   echo "插件目录    : ${PLUGIN_DIR}"
   echo "配置目录    : ${CFG_DIR}"
   echo "配置文件    : ${CFG_FILE} $([ -f "$CFG_FILE" ] && echo '(存在)' || echo '(缺失，使用默认值)')"
@@ -178,7 +224,12 @@ if [ "$STATUS_ONLY" = "yes" ]; then
   echo "传播等待    : ${PROPAGATION}s"
   echo "测试环境    : ${STAGING}"
   echo "重启 nginx  : ${RESTART_NGINX}"
-  bundle="/boot/config/ssl/certs/${UNRAID_HOSTNAME}_unraid_bundle.pem"
+  if [ -x "$DOCKER" ] || command -v "$DOCKER" >/dev/null 2>&1; then
+    echo "docker 命令 : ${DOCKER}"
+  else
+    echo "docker 命令 : ${DOCKER} (不可用)"
+  fi
+  bundle="${SSL_CERTS_DIR}/${UNRAID_HOSTNAME}_unraid_bundle.pem"
   echo "bundle 文件 : ${bundle} $([ -f "$bundle" ] && echo '(存在)' || echo '(缺失)')"
   exit 0
 fi
@@ -239,16 +290,16 @@ printf '%s' "$$" > "${LOCK_DIR}/pid"
 trap 'rm -rf "$LOCK_DIR"' EXIT
 
 # Docker 可用性 —— 给出明确原因，而不是让 docker run 抛晦涩错误
-if ! command -v docker >/dev/null 2>&1; then
-  fail 4 "找不到 docker 命令"
+if ! command -v "$DOCKER" >/dev/null 2>&1; then
+  fail 4 "找不到 docker 命令（当前使用：${DOCKER}）"
 fi
-if ! docker info >/dev/null 2>&1; then
+if ! "$DOCKER" info >/dev/null 2>&1; then
   fail 4 "Docker 服务未运行（通常是阵列未启动）。请启动阵列后重试。"
 fi
 
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+if ! "$DOCKER" image inspect "$IMAGE" >/dev/null 2>&1; then
   log "⬇️  本地没有 ${IMAGE} 镜像，正在拉取..."
-  if ! docker pull "$IMAGE"; then
+  if ! "$DOCKER" pull "$IMAGE"; then
     fail 2 "拉取镜像 ${IMAGE} 失败，请检查网络或先在终端手动 docker pull"
   fi
 fi
@@ -291,11 +342,11 @@ done
 log "📜 请求证书：${DOMAIN_ARRAY[*]}"
 
 {
-  printf '\n[%s] $ docker run --rm %s certbot %s\n' \
-    "$(date '+%Y-%m-%d %H:%M:%S')" "$IMAGE" "${CERTBOT_ARGS[*]}"
+  printf '\n[%s] $ %s run --rm %s certbot %s\n' \
+    "$(date '+%Y-%m-%d %H:%M:%S')" "$DOCKER" "$IMAGE" "${CERTBOT_ARGS[*]}"
 } >> "$LOG_FILE"
 
-docker run --rm \
+"$DOCKER" run --rm \
   -v "${CERT_DIR}:/etc/letsencrypt" \
   -v "${CRED_FILE}:/cloudflare.ini:ro" \
   "$IMAGE" "${CERTBOT_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
@@ -313,13 +364,13 @@ fi
 LIVE_DIR="${CERT_DIR}/live/${PRIMARY_DOMAIN}"
 CERT_FILE="${LIVE_DIR}/fullchain.pem"
 KEY_FILE="${LIVE_DIR}/privkey.pem"
-OUTPUT_FILE="/boot/config/ssl/certs/${UNRAID_HOSTNAME}_unraid_bundle.pem"
+OUTPUT_FILE="${SSL_CERTS_DIR}/${UNRAID_HOSTNAME}_unraid_bundle.pem"
 
 if [ ! -s "$CERT_FILE" ] || [ ! -s "$KEY_FILE" ]; then
   fail 2 "证书文件未生成：${CERT_FILE} 或 ${KEY_FILE} 不存在"
 fi
 
-mkdir -p /boot/config/ssl/certs || fail 1 "无法创建 /boot/config/ssl/certs"
+mkdir -p "$SSL_CERTS_DIR" || fail 1 "无法创建 ${SSL_CERTS_DIR}"
 
 TEMP_BUNDLE=$(mktemp) || fail 1 "无法创建临时文件"
 cat "$CERT_FILE" "$KEY_FILE" > "$TEMP_BUNDLE" || { rm -f "$TEMP_BUNDLE"; fail 1 "合并证书失败"; }
@@ -349,7 +400,7 @@ log "✅ 新证书已写入 ${OUTPUT_FILE}"
 
 if [ "$RESTART_NGINX" = "yes" ]; then
   log "🔁 重启 Unraid Web 管理服务 (nginx)..."
-  if /etc/rc.d/rc.nginx restart >/dev/null 2>&1; then
+  if [ -x "$NGINX_RC" ] && "$NGINX_RC" restart >/dev/null 2>&1; then
     log "✅ nginx 已重启"
   else
     log "⚠️  nginx 重启返回非零，请检查 webGUI 是否正常"

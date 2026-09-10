@@ -17,7 +17,8 @@ skip() { printf '  --   %s（未安装，跳过）\n' "$1"; }
 rel() { printf '%s' "${1#"$ROOT"/}"; }
 
 echo "== bash =="
-for f in "$ROOT"/build.sh "$ROOT"/lint.sh "$PLUGIN_DIR"/scripts/*.sh "$PLUGIN_DIR"/event/*; do
+for f in "$ROOT"/build.sh "$ROOT"/lint.sh "$ROOT"/dev.sh "$ROOT"/dev/*.sh "$ROOT"/dev/bin/* \
+         "$PLUGIN_DIR"/scripts/*.sh "$PLUGIN_DIR"/event/*; do
   [ -f "$f" ] || continue
   if bash -n "$f" 2>/dev/null; then
     ok "$(rel "$f")"
@@ -27,9 +28,13 @@ for f in "$ROOT"/build.sh "$ROOT"/lint.sh "$PLUGIN_DIR"/scripts/*.sh "$PLUGIN_DI
   fi
 done
 
+# 插件代码是 php 7.4+；dev/ 下的仿真实现同样按这个版本检查语法
+PHP_FILES=("$PLUGIN_DIR"/include/*.php)
+while IFS= read -r f; do PHP_FILES+=("$f"); done < <(find "$ROOT/dev" -type f -name '*.php' 2>/dev/null | sort)
+
 echo "== php =="
 if command -v php >/dev/null 2>&1; then
-  for f in "$PLUGIN_DIR"/include/*.php; do
+  for f in "${PHP_FILES[@]}"; do
     [ -f "$f" ] || continue
     if php -l "$f" >/dev/null 2>&1; then
       ok "$(rel "$f")"

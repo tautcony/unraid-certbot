@@ -9,12 +9,44 @@
  */
 
 const CB_PLUGIN      = 'unraid-certbot';
-const CB_CFG_DIR     = '/boot/config/plugins/unraid-certbot';
-const CB_PLUGIN_DIR  = '/usr/local/emhttp/plugins/unraid-certbot';
-const CB_CRED_FILE   = CB_CFG_DIR . '/cloudflare.ini';
-const CB_HISTORY     = CB_CFG_DIR . '/history.tsv';
-const CB_LOG         = CB_CFG_DIR . '/certbot.log';
 const CB_HISTORY_MAX = 200;
+
+/**
+ * 本地调试：CB_DEV_ROOT 是一个沙箱根目录，设置后所有绝对路径都会挂到它下面，
+ * 从而不会读写宿主机的 /boot、/usr/local/emhttp 等真实位置。
+ * 生产环境（Unraid）不设置该变量，下面的路径与 Unraid 上完全一致。
+ *
+ * 与 scripts/renew.sh 的 syspath() 保持同一套规则，两边指向同一个沙箱。
+ */
+function cb_dev_root(): string
+{
+    static $root = null;
+    if ($root === null) {
+        $root = rtrim((string)getenv('CB_DEV_ROOT'), '/');
+    }
+    return $root;
+}
+
+/** 把绝对路径映射到沙箱根下；已经在沙箱内的路径原样返回，避免重复加前缀 */
+function cb_syspath(string $path): string
+{
+    $root = cb_dev_root();
+    if ($root === '' || $path === '') {
+        return $path;
+    }
+    if ($path === $root || strpos($path, $root . '/') === 0) {
+        return $path;
+    }
+    return $path[0] === '/' ? $root . $path : $root . '/' . $path;
+}
+
+define('CB_PLUGIN_DIR', cb_syspath('/usr/local/emhttp/plugins/unraid-certbot'));
+define('CB_CFG_DIR',    cb_syspath('/boot/config/plugins/unraid-certbot'));
+define('CB_SSL_DIR',    cb_syspath('/boot/config/ssl/certs'));
+define('CB_VAR_INI',    cb_syspath('/var/local/emhttp/var.ini'));
+define('CB_CRED_FILE',  CB_CFG_DIR . '/cloudflare.ini');
+define('CB_HISTORY',    CB_CFG_DIR . '/history.tsv');
+define('CB_LOG',        CB_CFG_DIR . '/certbot.log');
 
 /** 把配置里的 yes/on/true/1 统一判断成布尔值 */
 function cb_bool($v): bool
@@ -188,12 +220,28 @@ function cb_log_tail(int $lines = 400): string
     return implode("\n", array_slice($all, -$lines));
 }
 
+/**
+ * docker 可执行文件。默认就是 PATH 里的 docker；
+ * 本地调试时 dev.sh 会导出 CB_DOCKER 指向 dev/bin/docker 这个假实现。
+ */
+function cb_docker_cmd(): string
+{
+    static $cmd = null;
+    if ($cmd === null) {
+        $cmd = trim((string)getenv('CB_DOCKER'));
+        if ($cmd === '') {
+            $cmd = 'docker';
+        }
+    }
+    return $cmd;
+}
+
 /** Docker 是否可用（阵列没起时为 false） */
 function cb_docker_ok(): bool
 {
     static $ok = null;
     if ($ok === null) {
-        exec('docker info >/dev/null 2>&1', $_, $rc);
+        exec(escapeshellarg(cb_docker_cmd()) . ' info >/dev/null 2>&1', $_, $rc);
         $ok = ($rc === 0);
     }
     return $ok;
@@ -204,7 +252,7 @@ function cb_image_ok(): bool
 {
     static $ok = null;
     if ($ok === null) {
-        exec('docker image inspect certbot/dns-cloudflare >/dev/null 2>&1', $_, $rc);
+        exec(escapeshellarg(cb_docker_cmd()) . ' image inspect certbot/dns-cloudflare >/dev/null 2>&1', $_, $rc);
         $ok = ($rc === 0);
     }
     return $ok;
@@ -219,8 +267,10 @@ function cb_status(array $cfg): array
     $primary = $domains[0] ?? '';
     $host    = trim((string)($cfg['UNRAID_HOSTNAME'] ?? ''));
     $certDir = rtrim(trim((string)($cfg['CERT_DIR'] ?? '')), '/') ?: '/boot/config/letsencrypt';
+    // 配置里存的是 Unraid 上的绝对路径；本地调试时同样要挂到沙箱下
+    $certDir = cb_syspath($certDir);
 
-    $bundlePath = $host !== '' ? "/boot/config/ssl/certs/{$host}_unraid_bundle.pem" : null;
+    $bundlePath = $host !== '' ? CB_SSL_DIR . "/{$host}_unraid_bundle.pem" : null;
     $bundle     = cb_cert_info($bundlePath);
     $livePath   = ($primary !== '' && is_file("{$certDir}/live/{$primary}/fullchain.pem"))
         ? "{$certDir}/live/{$primary}/fullchain.pem"
@@ -328,7 +378,7 @@ function cb_schedule_label(string $s): string
  */
 function cb_unraid_name(): string
 {
-    $ini = '/var/local/emhttp/var.ini';
+    $ini = CB_VAR_INI;
     if (is_file($ini)) {
         foreach ((array)@file($ini, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
             if (preg_match('/^\s*NAME\s*=\s*"?(.*?)"?\s*$/', $line, $m) && $m[1] !== '') {

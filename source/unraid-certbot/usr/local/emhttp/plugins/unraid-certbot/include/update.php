@@ -18,10 +18,10 @@ require_once "$docroot/plugins/dynamix/include/Wrappers.php";
 define('CB_NO_CLI_OUTPUT', true);
 require_once "$docroot/plugins/unraid-certbot/include/status.php";
 
-$cbPluginDir = '/usr/local/emhttp/plugins/unraid-certbot';
-$cbCfgDir    = '/boot/config/plugins/unraid-certbot';
-$cbCredFile  = "$cbCfgDir/cloudflare.ini";
-$cbErrors    = [];
+// 路径常量来自 status.php（CB_PLUGIN_DIR / CB_CFG_DIR），本地调试时同样指向沙箱
+$cbPluginDir = CB_PLUGIN_DIR;
+$cbCfgDir    = CB_CFG_DIR;
+$cbCredFile  = CB_CRED_FILE;
 
 /** 把一行消息推给界面上的日志框 */
 function cb_say(string $msg, string $prefix = ''): void
@@ -31,10 +31,25 @@ function cb_say(string $msg, string $prefix = ''): void
     @flush();
 }
 
+/**
+ * 校验错误清单。$add 非空时追加一条，返回当前全部错误。
+ *
+ * 这里用函数内的 static 而不是 `global $cbErrors`：Unraid 是在全局作用域 include
+ * 本文件的，但本地调试（dev/server.php 仿真 update.php）是在函数里 include，
+ * 那种情况下 global 取不到外层的变量，错误会被静默丢掉。static 两种方式都成立。
+ */
+function cb_errors(?string $add = null): array
+{
+    static $errors = [];
+    if ($add !== null) {
+        $errors[] = $add;
+    }
+    return $errors;
+}
+
 function cb_error(string $msg): void
 {
-    global $cbErrors;
-    $cbErrors[] = $msg;
+    cb_errors($msg);
     cb_say($msg, '❌ ');
 }
 
@@ -114,8 +129,10 @@ if ($certDir[0] !== '/') {
 } elseif (strpos($certDir, ' ') !== false) {
     cb_error('证书目录不能包含空格');
 } else {
+    // .cfg 里存 Unraid 上的路径；落到磁盘时再映射到沙箱（本地调试用）
     $_POST['CERT_DIR'] = $certDir;
-    if (!is_dir($certDir) && !@mkdir($certDir, 0700, true)) {
+    $realCertDir = cb_syspath($certDir);
+    if (!is_dir($realCertDir) && !@mkdir($realCertDir, 0700, true)) {
         cb_error("无法创建证书目录 {$certDir}，请检查路径与权限");
     }
 }
@@ -174,7 +191,7 @@ if ($clearTok) {
 // 只有前面都通过了，才去动 cron
 // ---------------------------------------------------------------------------
 
-if (empty($cbErrors)) {
+if (cb_errors() === []) {
     $script    = "$cbPluginDir/scripts/renew.sh";
     $schedule  = (string)($_POST['SCHEDULE'] ?? 'daily');
     $scheduleMap = [

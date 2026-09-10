@@ -1,0 +1,194 @@
+#!/bin/bash
+#
+# unraid-certbot 本地调试用的假 docker。
+#
+# 只实现 renew.sh / status.php / exec.php 真正会用到的那几个子命令，
+# 不联网、不启动容器。`docker run ... certonly` 会用 openssl 现场签一张
+# 自签证书写到 live/<域名>/ 下，模拟 certbot 的产出，这样整套续期流程
+# 可以离线跑通（含合并 bundle、写历史、重启 nginx 的假实现）。
+#
+# 由 dev.sh 通过 CB_DOCKER 指过来，并放进沙箱 PATH 的最前面。
+#
+set -uo pipefail
+
+STUB_TAG="unraid-certbot dev stub"
+
+info() {
+  # 真机上这里会打印一堆信息；这里只需要让 renew.sh 判定“守护进程可用”
+  if printf '%s\n' "$*" | grep -q -- '--format'; then
+    echo "27.0.0-dev / overlay2 (${STUB_TAG})"
+  else
+    echo "Client: ${STUB_TAG}"
+    echo "Server: 27.0.0-dev (假实现，不会真的运行容器)"
+  fi
+  exit 0
+}
+
+image_inspect() {
+  local fmt=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --format) fmt="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  if printf '%s' "$fmt" | grep -q 'Id'; then
+    echo "sha256:0000000000000000000000000000000000000000000000000000000000000000 2026-01-01 00:00:00 +0000 UTC (${STUB_TAG})"
+  else
+    echo "[{\"Id\":\"sha256:dev\",\"RepoTags\":[\"certbot/dns-cloudflare:latest\"]}]"
+  fi
+  exit 0
+}
+
+# 用 openssl 签一张自签证书，产物布局与 certbot 的 live/<cert-name>/ 一致
+make_certs() {
+  local live="$1" name="$2" days="$3" ca_cn="$4"
+  shift 4
+  local domains=("$@")
+  local tmp rc=0
+  tmp="$(mktemp -d)" || return 1
+  mkdir -p "$live"
+
+  if ! openssl req -x509 -newkey rsa:2048 -nodes \
+      -keyout "$tmp/ca.key" -out "$tmp/ca.pem" -days 3650 \
+      -subj "/O=${STUB_TAG}/CN=${ca_cn}" >/dev/null 2>&1; then
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ] && ! openssl req -newkey rsa:2048 -nodes \
+      -keyout "$live/privkey.pem" -out "$tmp/leaf.csr" \
+      -subj "/CN=${name}" >/dev/null 2>&1; then
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    {
+      echo "basicConstraints=CA:FALSE"
+      echo "keyUsage=digitalSignature,keyEncipherment"
+      echo "extendedKeyUsage=serverAuth"
+      printf 'subjectAltName='
+      local sep="" d
+      for d in "${domains[@]}"; do
+        printf '%sDNS:%s' "$sep" "$d"
+        sep=","
+      done
+      echo
+    } > "$tmp/ext.cnf"
+
+    if ! openssl x509 -req -in "$tmp/leaf.csr" \
+        -CA "$tmp/ca.pem" -CAkey "$tmp/ca.key" -CAcreateserial \
+        -out "$live/cert.pem" -days "$days" -extfile "$tmp/ext.cnf" >/dev/null 2>&1; then
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    cp "$tmp/ca.pem" "$live/chain.pem"
+    cat "$live/cert.pem" "$live/chain.pem" > "$live/fullchain.pem"
+    chmod 600 "$live/privkey.pem" 2>/dev/null
+  fi
+
+  rm -rf "$tmp"
+  return "$rc"
+}
+
+docker_run() {
+  local cert_dir="" cred_mount="" cert_name="" image="" staging="no" force="no"
+  local domains=()
+
+  # 解析 docker run 的参数：只挑出续期流程真正关心的几个，其余忽略
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      certonly) shift ;;
+      -v)
+        case "${2:-}" in
+          *:/etc/letsencrypt)  cert_dir="${2%:/etc/letsencrypt}" ;;
+          *:/cloudflare.ini*)  cred_mount="${2%%:*}" ;;
+        esac
+        shift 2
+        ;;
+      --cert-name) cert_name="${2:-}"; shift 2 ;;
+      -d)          domains+=("${2:-}"); shift 2 ;;
+      --server)
+        case "${2:-}" in *staging*) staging="yes" ;; esac
+        shift 2
+        ;;
+      --force-renewal) force="yes"; shift ;;
+      certbot/dns-cloudflare|*/dns-cloudflare*) image="$1"; shift ;;
+      *) shift ;;
+    esac
+  done
+
+  echo "假 docker：模拟 certbot 运行（不联网、不启动容器）"
+  echo "  image      : ${image:-未指定}"
+  echo "  config-dir : ${cert_dir:-未指定}"
+  echo "  cert-name  : ${cert_name:-未指定}"
+  echo "  domains    : ${domains[*]:-未指定}"
+  echo "  server     : $([ "$staging" = yes ] && echo 'staging（测试环境）' || echo 'production')"
+
+  if [ -z "$cert_dir" ]; then
+    echo "错误：没有找到 -v <目录>:/etc/letsencrypt 挂载" >&2
+    exit 1
+  fi
+  if [ -z "$cert_name" ]; then
+    echo "错误：没有找到 --cert-name" >&2
+    exit 1
+  fi
+  if [ -z "$cred_mount" ] || [ ! -s "$cred_mount" ]; then
+    echo "错误：Cloudflare 凭据文件不可读：${cred_mount:-未挂载}" >&2
+    exit 1
+  fi
+  if [ "${#domains[@]}" -eq 0 ]; then
+    echo "错误：没有找到 -d 域名" >&2
+    exit 1
+  fi
+
+  local live="${cert_dir}/live/${cert_name}"
+  mkdir -p "${cert_dir}/accounts/dev" "${cert_dir}/renewal" "${live}" 2>/dev/null
+
+  # 与 certbot 一致：证书还早着到期、且没有 --force-renewal 时直接跳过
+  if [ "$force" != "yes" ] && [ -s "${live}/cert.pem" ] \
+     && openssl x509 -checkend $((30 * 86400)) -noout -in "${live}/cert.pem" >/dev/null 2>&1; then
+    echo "Certificate not yet due for renewal"
+    echo "Keeping the existing certificate"
+    exit 0
+  fi
+
+  local ca_cn="${STUB_TAG} CA"
+  [ "$staging" = "yes" ] && ca_cn="(STAGING) ${STUB_TAG} CA"
+
+  # CB_DEV_CERT_DAYS 可以造出「即将到期」的样例证书，方便看状态页的告警样式
+  if ! make_certs "$live" "$cert_name" "${CB_DEV_CERT_DAYS:-90}" "$ca_cn" "${domains[@]}"; then
+    echo "错误：openssl 生成测试证书失败" >&2
+    exit 1
+  fi
+
+  {
+    echo "dev-stub=1"
+    echo "cert_name=${cert_name}"
+    echo "domains=${domains[*]}"
+    echo "issued_at=$(date '+%Y-%m-%d %H:%M:%S')"
+  } > "${cert_dir}/renewal/${cert_name}.conf" 2>/dev/null
+
+  echo "Successfully received certificate."
+  echo "Certificate is saved at: ${cert_dir}/live/${cert_name}/fullchain.pem"
+  echo "Key is saved at:         ${cert_dir}/live/${cert_name}/privkey.pem"
+  echo "This certificate expires on $(openssl x509 -noout -enddate -in "${live}/cert.pem" 2>/dev/null | cut -d= -f2)."
+  exit 0
+}
+
+case "${1:-}" in
+  info)        shift; info "$@" ;;
+  --version|-v) echo "Docker version 27.0.0-dev, build ${STUB_TAG}" ;;
+  image)       shift; image_inspect "$@" ;;
+  pull)        echo "${STUB_TAG}：跳过拉取 ${2:-}"; exit 0 ;;
+  run)         shift; docker_run "$@" ;;
+  "")
+    echo "用法：docker <info|image|pull|run> ...（${STUB_TAG}）" >&2
+    exit 1
+    ;;
+  *)
+    echo "${STUB_TAG}：未实现的子命令：$1" >&2
+    exit 1
+    ;;
+esac

@@ -14,11 +14,14 @@ require_once "$docroot/plugins/dynamix/include/Wrappers.php";
 // exec.php 的输出全部是给界面 addLog 的 <script> 片段，禁止任何额外输出混进来
 define('CB_NO_CLI_OUTPUT', true);
 
+require_once "$docroot/plugins/unraid-certbot/include/status.php";
+
 $plugin    = 'unraid-certbot';
 // 用 $docroot 推导而不是写死 /usr/local/emhttp，便于在测试环境里跑，也兼容非标准安装
 $pluginDir = "{$docroot}/plugins/{$plugin}";
 $script    = "{$pluginDir}/scripts/renew.sh";
-$logFile   = "/boot/config/plugins/{$plugin}/certbot.log";
+// 日志路径跟随 status.php 的沙箱规则（本地调试时指向 dev/run）
+$logFile   = CB_LOG;
 
 header('Content-Type: text/html; charset=utf-8');
 
@@ -78,11 +81,12 @@ write_log('');
 
 if ($action === 'docker') {
     // 单纯的排障动作：把 docker 环境情况打出来
+    $dk = escapeshellarg(cb_docker_cmd());
     foreach ([
-        'docker 路径'   => 'command -v docker',
-        'docker 版本'   => 'docker --version',
-        '守护进程'      => 'docker info --format "{{.ServerVersion}} / {{.Driver}}"',
-        'certbot 镜像'  => 'docker image inspect certbot/dns-cloudflare --format "{{.Id}} {{.Created}}"',
+        'docker 路径'   => "command -v " . $dk,
+        'docker 版本'   => $dk . ' --version',
+        '守护进程'      => $dk . ' info --format "{{.ServerVersion}} / {{.Driver}}"',
+        'certbot 镜像'  => $dk . ' image inspect certbot/dns-cloudflare --format "{{.Id}} {{.Created}}"',
     ] as $label => $cmd) {
         write_log("--- {$label} ---");
         $p = popen($cmd . ' 2>&1', 'r');

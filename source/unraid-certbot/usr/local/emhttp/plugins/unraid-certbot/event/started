@@ -9,8 +9,11 @@
 # 否则会卡住整个启动流程。
 
 PLUGIN="unraid-certbot"
-PLUGIN_DIR="/usr/local/emhttp/plugins/${PLUGIN}"
-CFG_FILE="/boot/config/plugins/${PLUGIN}/${PLUGIN}.cfg"
+
+# 本地调试：CB_DEV_ROOT 把系统路径映射到沙箱，生产环境为空即真实路径
+DEV_ROOT="${CB_DEV_ROOT:-}"
+PLUGIN_DIR="${DEV_ROOT}/usr/local/emhttp/plugins/${PLUGIN}"
+CFG_FILE="${DEV_ROOT}/boot/config/plugins/${PLUGIN}/${PLUGIN}.cfg"
 
 [ -x "${PLUGIN_DIR}/scripts/renew.sh" ] || exit 0
 
