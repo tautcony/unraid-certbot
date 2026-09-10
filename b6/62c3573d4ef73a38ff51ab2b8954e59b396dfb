@@ -1,0 +1,18 @@
+.env.sample
+  h_3705811fa4502c 1-3
+cloudflare/cloudflare.ini
+  h_3705811fa4502c 1
+get_ssl.sh
+  h_3705811fa4502c 1-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b662c3573d4ef73a38ff51ab2b8954e59b396dfb",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
