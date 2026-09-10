@@ -79,11 +79,11 @@ $health = [
 </table>
 <?php else: ?>
 <blockquote class="inline_help">
-<b>还没有找到已安装的证书。</b>
+<b>尚未找到已安装的证书。</b>
 <?php if (!$st['bundle_path']): ?>
 先在 <a href="/Settings/UnraidCertbot">设置页</a>填写 Unraid 主机名。
 <?php else: ?>
-<code><?=cb_e($st['bundle_path'])?></code> 不存在 —— 可能还没成功续期过。
+<code><?=cb_e($st['bundle_path'])?></code> 不存在，可能尚未成功续期。
 <?php endif; ?>
 </blockquote>
 <?php endif; ?>
@@ -107,7 +107,7 @@ $health = [
 <table class="cb-table">
   <tr><th>Docker 服务</th><td>
       <?php if ($st['docker_ok']): ?><span class="green-text">可用</span>
-      <?php else: ?><span class="red-text">不可用 —— 通常是阵列未启动</span><?php endif; ?>
+      <?php else: ?><span class="red-text">不可用（通常为阵列未启动）</span><?php endif; ?>
   </td></tr>
   <tr><th>certbot 镜像</th><td>
       <?php if ($st['image_ok']): ?><span class="green-text">已存在</span>
@@ -140,7 +140,7 @@ $health = [
 <!-- ======================= 续期历史 ======================= -->
 <div id="cb-pane-history" class="cb-pane">
 <?php if (empty($st['history'])): ?>
-<blockquote class="inline_help">还没有续期记录。点击上面的「立即检查并续期」跑一次。</blockquote>
+<blockquote class="inline_help">暂无记录。点击上方「立即检查并续期」执行一次。</blockquote>
 <?php else: ?>
 <table class="cb-table">
   <tr>
@@ -175,7 +175,7 @@ $health = [
 <!-- ======================= 运行日志 ======================= -->
 <div id="cb-pane-log" class="cb-pane">
 <p class="grey-text" style="font-size:12px;margin-bottom:6px">
-  <code>/boot/config/plugins/<?=$cb?>/certbot.log</code> —— 显示最后 400 行，超过 1 MiB 会自动截断。
+  <code>/boot/config/plugins/<?=$cb?>/certbot.log</code>，显示最后 400 行，超过 1 MiB 时自动截断。
 </p>
 <?php if (trim($log) === ''): ?>
 <blockquote class="inline_help">日志还是空的。</blockquote>

@@ -84,6 +84,16 @@ if command -v php >/dev/null 2>&1; then
     if ($md5 !== "" && !preg_match("/^[0-9a-f]{32}$/", $md5)) {
       fwrite(STDERR, "  MD5 格式不对：$md5\n"); $err = 1;
     }
+    // 下载地址必须指向 .plg 自己声明的版本。URL 里写的是 &version; 实体，
+    // simplexml 已经展开，所以这里能直接比对 —— 发布工作流也依赖同一前提。
+    $ver = trim((string)$x["version"]);
+    $url = trim((string)$pkg->URL);
+    if ($ver === "" || strpos($url, "releases/download/$ver/") === false) {
+      fwrite(STDERR, "  下载地址与版本号对不上：version=$ver URL=$url\n"); $err = 1;
+    }
+    if (strpos((string)$pkg["Name"], $ver) === false) {
+      fwrite(STDERR, "  包名里没有版本号：" . $pkg["Name"] . "\n"); $err = 1;
+    }
     if ($err) exit(1);
     printf("  ok   name=%s version=%s\n", $x["name"], $x["version"]);
   ' "$ROOT/unraid-certbot.plg" || FAILED=1

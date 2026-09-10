@@ -47,10 +47,18 @@ jobs:
             || { echo "::error::.plg 里的 MD5 与实际包不符"; exit 1; }
           grep -q "<SHA256>${sha}</SHA256>" unraid-certbot.plg \
             || { echo "::error::.plg 里的 SHA256 与实际包不符"; exit 1; }
-          grep -q "releases/download/${version}/" unraid-certbot.plg \
+
+          # .plg 里的 URL 和属性用的是 &version; 这类 DTD 实体，文件里根本没有
+          # 字面版本号（Unraid 安装时才展开），所以必须先用 xmllint --noent 展开再比。
+          declared="$(xmllint --noent --xpath 'string(/PLUGIN/@version)' unraid-certbot.plg)"
+          [ "$declared" = "$version" ] \
+            || { echo "::error::.plg 声明的版本是 ${declared}，与 tag ${version} 不一致"; exit 1; }
+
+          expanded="$(xmllint --noent unraid-certbot.plg)"
+          grep -q "releases/download/${version}/" <<<"$expanded" \
             || { echo "::error::.plg 里的下载地址没有指向本次 tag"; exit 1; }
 
-          echo "校验和一致：$md5"
+          echo "校验通过：版本 ${declared}，MD5 ${md5}"
 
       - name: 创建 Release
         env:
