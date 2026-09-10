@@ -1,0 +1,38 @@
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/CertStatus.page
+  h_3705811fa4502c 82,86,110,143,178
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/unraid-certbot.page
+  h_3705811fa4502c 30,54,56-57,62,67-69,75-77,83,89-91,102,108,110,118,126-127
+dev/README.md
+  h_3705811fa4502c 3,8,11,19,21,26-29,31-32,37,49,51-55,59,75,81,83,85-86,88,92,94-97,99,103-111,120,126
+README.md
+  h_3705811fa4502c 5,9,19,26,28,30,32-38,41,45,59,63,69,87,93,95,98-99,103,107,111-112,118,125,137-139
+.github/workflows/release.yml
+  s_68bbbd19742170::t_56d675c93b22a2 58,61
+  s_68bbbd19742170::t_2591bdded9c094 55-57
+  h_3705811fa4502c 50-54
+LICENSE
+  h_3705811fa4502c 1-674
+lint.sh
+  h_3705811fa4502c 87-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "3e4b5d679445afd47082ffab1e73a17478a39037",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  },
+  "sessions": {
+    "s_68bbbd19742170": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b622d0df-fce0-41e4-bf66-9e0389d8c42f",
+        "model": "deepseek-flash"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
