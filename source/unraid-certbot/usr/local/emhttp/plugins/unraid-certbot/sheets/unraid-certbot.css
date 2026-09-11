@@ -1,0 +1,85 @@
+/**
+ * unraid-certbot - 设置页样式
+ *
+ * Unraid 会自动引入 <插件目录>/sheets/<页面名>.css 与 <页面名>-<主题>.css，
+ * 所以这里不再往 .page 正文里塞 <style>（正文会经过 Markdown 处理，内联样式容易被搅乱）。
+ *
+ * 颜色一律走 Unraid 的主题变量，弹窗/独立打开时取不到变量也有浅色兜底。
+ */
+
+/* ---------- 标签栏 ---------- */
+#cb-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: 0 0 1.2rem 0;
+  border-bottom: 1px solid var(--border-color, #d3d3d3);
+}
+#cb-tabs button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  color: var(--text-color, #1c1c1c);
+  opacity: .55;
+  padding: .75rem 1rem;
+  font-family: inherit;
+  font-size: 1.4rem;
+  letter-spacing: 1.8px;
+  min-width: 0;
+  margin: 0;
+  cursor: pointer;
+}
+#cb-tabs button:hover {
+  border-color: var(--orange-500, #ff8c2f);
+  border-bottom-color: transparent;
+  color: var(--text-color, #1c1c1c);
+  opacity: 1;
+}
+#cb-tabs button.active {
+  border-color: var(--orange-500, #ff8c2f);
+  border-bottom-color: transparent;
+  color: var(--text-color, #1c1c1c);
+  opacity: 1;
+}
+
+/* ---------- 表格（状态 / 历史） ---------- */
+.cb-table { width: 100%; border-collapse: collapse; }
+.cb-table th,
+.cb-table td {
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--table-border-color, #e8e8e8);
+}
+.cb-table th { color: var(--alt-text-color, #909090); font-weight: normal; }
+
+/* ---------- 标记与日志 ---------- */
+.cb-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.cb-ok   { background: var(--green-100, #e6f4ea); color: var(--green-900, #137333); }
+.cb-fail { background: var(--red-100, #fce8e6);   color: var(--red-900, #c5221f); }
+.cb-log {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 12px;
+  border-radius: 4px;
+  font-family: var(--font-bitstream, Menlo, Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 520px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---------- 设置表单 ---------- */
+.cb-actions input[type=button] { margin-right: 8px; }
+#cb-pane-config { padding-bottom: 1.5rem; }
+#cb-pane-config dl { margin: 0; padding: 0; }
+#cb-pane-config .cb-inline-btn { margin-left: .6rem; }
+#cb-pane-config textarea { width: 100%; max-width: 52rem; }
+#cb-pane-config input[type=text],
+#cb-pane-config input[type=password],
+#cb-pane-config input[type=email],
+#cb-pane-config input[type=number],
+#cb-pane-config select { max-width: 40rem; }

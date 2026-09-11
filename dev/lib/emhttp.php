@@ -465,6 +465,19 @@ function cb_dev_chrome(array $head, string $body, array $ctx = []): string
     $logoPath   = CB_DEV_LOGO_PATH;
     $cbDevStyles = CB_DEV_STYLES; // heredoc 只展开变量，常量要先落地到变量
 
+    // 真机由 includePageStylesheets() 自动引入 <插件>/sheets/<页面名>.css，预览同样处理
+    $cbSheetLink = '';
+    $srcName = basename((string)$ctx['source'] ?? '');
+    if (substr($srcName, -5) === '.page') {
+        // __FILE__ = <repo>/dev/lib/emhttp.php → 仓库根目录要退三层
+        $sheet = dirname(__DIR__, 2) . '/source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/sheets/'
+               . basename($srcName, '.page') . '.css';
+        if (is_file($sheet)) {
+            $cbSheetLink = '<link rel="stylesheet" href="/plugins/unraid-certbot/sheets/'
+                         . basename($srcName, '.page') . '.css">' . "\n";
+        }
+    }
+
     return <<<HTML
 <!DOCTYPE html>
 <html lang="zh-CN" class="{$themeClass}" data-theme="{$theme}">
@@ -473,6 +486,7 @@ function cb_dev_chrome(array $head, string $body, array $ctx = []): string
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{$titleHtml} · Unraid</title>
 <style>{$cbDevStyles}</style>
+{$cbSheetLink}
 </head>
 <body>
 

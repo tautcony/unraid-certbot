@@ -20,9 +20,9 @@ function cb_status_panel(array $st, string $cb): void
     ][$st['health']];
 ?>
 <div class="cb-actions" style="margin-bottom:1rem">
-  <input type="button" value="_(立即检查并续期)_" onclick="cbRun('renew')">
-  <input type="button" value="_(强制续期)_" onclick="cbRun('force')">
-  <input type="button" value="_(检查 Docker 环境)_" onclick="cbRun('docker')">
+  <input type="button" value="<?=_('立即检查并续期')?>" onclick="cbRun('renew')">
+  <input type="button" value="<?=_('强制续期')?>" onclick="cbRun('force')">
+  <input type="button" value="<?=_('检查 Docker 环境')?>" onclick="cbRun('docker')">
 </div>
 
 <p>

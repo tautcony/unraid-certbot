@@ -63,7 +63,7 @@ PLUGIN_ON_ROOT="${STAGE}/usr/local/emhttp/plugins/${NAME}"
 # 权限位必须在打包前设好，否则解到 Unraid 上脚本不可执行
 find "${PLUGIN_ON_ROOT}/scripts" -type f -exec chmod 0755 {} + 2>/dev/null || true
 find "${PLUGIN_ON_ROOT}/event"   -type f -exec chmod 0755 {} + 2>/dev/null || true
-find "$PLUGIN_ON_ROOT" -type f \( -name '*.page' -o -name '*.php' -o -name '*.cfg' \) -exec chmod 0644 {} + 2>/dev/null || true
+find "$PLUGIN_ON_ROOT" -type f \( -name '*.page' -o -name '*.php' -o -name '*.cfg' -o -name '*.css' \) -exec chmod 0644 {} + 2>/dev/null || true
 find "$PLUGIN_ON_ROOT" -type d -exec chmod 0755 {} + 2>/dev/null || true
 
 # ---------------------------------------------------------------------------

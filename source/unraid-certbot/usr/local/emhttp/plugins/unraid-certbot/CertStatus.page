@@ -1,13 +1,11 @@
-Menu="Utilities"
-Title="Cert Status"
-Icon="certificate"
 ---
 <?php
 /**
- * 工具 → Cert Status：只是 设置 → 网络服务 → Unraid Certbot 的另一个入口。
+ * 兼容跳转页：把 /Utilities/CertStatus 送到设置页的「证书状态」标签。
  *
- * 状态、设置、历史的正文只有一份，都在 unraid-certbot.page 里；
- * 这里不做任何渲染，直接把浏览器送到「证书状态」标签。
+ * 故意不写 Menu= —— 本页不出现在任何菜单里（用户要求移除这个入口），
+ * 只保留这个地址，供已收藏的链接与外部引用继续可用。
+ * 正文只有一份，都在 unraid-certbot.page。
  *
  * 兜底：万一 Unraid 在正文执行前已经输出了内容（headers_sent()），
  * 就用 meta 刷新，页面上的链接也能进到同一个地址。

@@ -15,13 +15,15 @@
 | `/` | 调试首页，显示沙箱状态和快捷入口 |
 | `/Settings/UnraidCertbot` | 设置页，对应真机的 设置 → 网络服务 → Unraid Certbot（默认停在证书状态标签） |
 | `/Settings/UnraidCertbot?tab=config` | 同一页的设置标签（另有 `?tab=history`、`?tab=log`） |
-| `/Utilities/CertStatus` | 工具 → Cert Status，真机上 302 跳到上面的证书状态标签 |
+| `/Utilities/CertStatus` | 兼容地址，302 跳到上面的证书状态标签（该页已不在任何菜单里） |
 
 设置页是一整页，没有二级入口也没有弹窗：「证书状态」标签显示状态与运行环境，「设置」标签是设置表单，另外两个是续期历史与运行日志。标签切换把 `tab=` 写进地址栏，刷新和收藏都能回到同一标签。
 
 「立即检查并续期」「强制续期」会实际执行 `scripts/renew.sh`，其中 `docker` 替换为不联网的假实现。
 
-预览服务器的路由顺序：先匹配设置页，再匹配插件目录里以 `.php` 结尾的端点（`exec.php` 等，按真机那样由 PHP 执行，而不是当静态文件发出去），最后才把 `dev/run` 里真实存在的文件交给内置服务器。`.page` 正文如果发了 `Location`（CertStatus.page 就是这种），预览按真机的响应处理，不再套预览外壳。
+预览服务器的路由顺序：先匹配设置页，再匹配插件目录里以 `.php` 结尾的端点（`exec.php` 等，按真机那样由 PHP 执行，而不是当静态文件发出去），最后才把 `dev/run` 里真实存在的文件（`sheets/*.css`、`default.cfg`、`logging.htm` 等）交给内置服务器。`.page` 正文如果发了 `Location`（CertStatus.page 就是这种），预览按真机的响应处理，不再套预览外壳。
+
+页面样式表按真机规则加载：渲染 `<页面名>.page` 时自动引入同插件的 `sheets/<页面名>.css`。
 
 预览界面的外壳与控件样式取自 Unraid 7 webGUI 源码（见下文「界面还原度」），外观与真机基本一致。
 

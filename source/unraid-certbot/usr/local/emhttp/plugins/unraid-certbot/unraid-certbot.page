@@ -48,23 +48,6 @@ if (!$st['configured']['domains']) $missing[] = '域名';
 $log = $tab === 'log' ? cb_log_tail(400) : '';
 ?>
 
-<style>
-#cb-tabs{margin:0 0 1.2rem 0;border-bottom:1px solid var(--border-color);display:flex;gap:.5rem;flex-wrap:wrap;}
-#cb-tabs button{background:transparent;border:1px solid transparent;border-bottom:2px solid transparent;border-radius:6px 6px 0 0;color:var(--text-color);opacity:.55;padding:.75rem 1rem;font-size:1.4rem;letter-spacing:1.8px;cursor:pointer;font-family:inherit;}
-#cb-tabs button:hover{border-color:var(--brand-orange);border-bottom-color:transparent;color:var(--text-color);opacity:1;}
-#cb-tabs button.active{border-color:var(--brand-orange);border-bottom-color:transparent;color:var(--text-color);opacity:1;}
-.cb-table{width:100%;border-collapse:collapse;}
-.cb-table th,.cb-table td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--table-border-color);vertical-align:top;}
-.cb-table th{color:var(--alt-text-color);font-weight:normal;}
-.cb-log{background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;font-family:var(--font-bitstream,Menlo,Consolas,monospace);font-size:12px;line-height:1.5;max-height:520px;overflow:auto;white-space:pre-wrap;word-break:break-all;}
-.cb-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;}
-.cb-ok{background:var(--green-100,#e6f4ea);color:var(--green-900,#137333);}
-.cb-fail{background:var(--red-100,#fce8e6);color:var(--red-900,#c5221f);}
-.cb-actions input[type=button]{margin-right:8px;}
-/* 设置标签的表单比较长，底部留点余量，免得贴着页脚 */
-#cb-pane-config{padding-bottom:1.5rem;}
-</style>
-
 <div id="cb-tabs">
   <?php foreach ($tabs as $key => $label): ?>
   <button type="button" class="<?=$key === $tab ? 'active' : ''?>" onclick="cbTab('<?=$key?>')"><?=_($label)?></button>
@@ -78,14 +61,8 @@ $log = $tab === 'log' ? cb_log_tail(400) : '';
 
 <!-- ======================= 设置 ======================= -->
 <div id="cb-pane-config" class="cb-pane"<?=$tab === 'config' ? '' : ' style="display:none"'?>>
-<?php if ($missing): ?>
-<blockquote class="inline_help cb-help-open">
-<b>还差几项配置：<?=cb_e(implode('、', $missing))?></b><br>
-填好后点「应用」。首次使用建议先勾选「测试环境」验证流程，确认无误后取消勾选并正式签发。
-</blockquote>
-<?php endif; ?>
 <blockquote id="cb-update-result" class="inline_help" style="display:none"></blockquote>
-<?php cb_form($cfg); ?>
+<?php cb_form($cfg, $missing); ?>
 </div>
 
 <!-- ======================= 续期历史 ======================= -->

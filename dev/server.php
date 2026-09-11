@@ -86,6 +86,11 @@ switch (true) {
         return true;
 }
 
+// 没命中路由：沙箱里真实存在的文件（页面样式表、图片、其它 .php）交给内置服务器
+if ($uri !== '/' && is_file("$DOCROOT$uri")) {
+    return false;
+}
+
 http_response_code(404);
 header('Content-Type: text/html; charset=utf-8');
 echo '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>404</title></head><body>';
