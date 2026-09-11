@@ -1,139 +1,141 @@
-Menu="Settings:50"
+Menu="NetworkServices"
 Title="Unraid Certbot"
 Icon="certificate"
 ---
 <?php
+/**
+ * Unraid Certbot：设置 → 网络服务 → Unraid Certbot（唯一入口）。
+ *
+ * 整页三个标签，默认进入「证书状态」：
+ *   - 证书状态：整体状态、WebGUI 与 certbot 证书、运行环境、续期/强制续期按钮
+ *   - 设置：Token / 邮箱 / 主机名 / 域名 / 存储目录 / 续期频率（include/config-form.php）
+ *   - 续期历史：history.tsv 最近若干条
+ *   - 运行日志：certbot.log 末尾若干行
+ *
+ * 没有二级入口，也没有弹窗；工具菜单里的 Cert Status 是同一页的另一个入口
+ * （见同目录 CertStatus.page，它只做跳转，内容只有这一份）。
+ *
+ * 标签状态用 ?tab= 记录，刷新与收藏都能回到原标签。
+ */
 $cb = 'unraid-certbot';
 require_once "$docroot/plugins/dynamix/include/Wrappers.php";
 require_once "$docroot/plugins/$cb/include/status.php";
+require_once "$docroot/plugins/$cb/include/config-form.php";
+require_once "$docroot/plugins/$cb/include/status-panel.php";
+require_once "$docroot/plugins/$cb/include/history-panel.php";
 
 $cfg = parse_plugin_cfg($cb);
 $st  = cb_status($cfg);
 
-$healthText = [
-    'ok'      => ['green-text',  '证书正常'],
-    'soon'    => ['orange-text', '即将到期'],
-    'expired' => ['red-text',    '已过期'],
-    'unknown' => ['grey-text',   '尚未签发'],
-][$st['health']];
+$tabs = [
+    'status'  => '证书状态',
+    'config'  => '设置',
+    'history' => '续期历史',
+    'log'     => '运行日志',
+];
+$tab = (string)($_GET['tab'] ?? 'status');
+if (!isset($tabs[$tab])) {
+    $tab = 'status';
+}
 
+// 缺配置时给出待办清单，避免用户不知道要填哪几项
 $missing = [];
 if (!$st['configured']['token'])   $missing[] = 'Cloudflare API Token';
 if (!$st['configured']['email'])   $missing[] = '邮箱';
 if (!$st['configured']['host'])    $missing[] = 'Unraid 主机名';
 if (!$st['configured']['domains']) $missing[] = '域名';
+
+$log = $tab === 'log' ? cb_log_tail(400) : '';
 ?>
 
+<style>
+#cb-tabs{margin:0 0 1.2rem 0;border-bottom:1px solid var(--border-color);display:flex;gap:.5rem;flex-wrap:wrap;}
+#cb-tabs button{background:transparent;border:1px solid transparent;border-bottom:2px solid transparent;border-radius:6px 6px 0 0;color:var(--text-color);opacity:.55;padding:.75rem 1rem;font-size:1.4rem;letter-spacing:1.8px;cursor:pointer;font-family:inherit;}
+#cb-tabs button:hover{border-color:var(--brand-orange);border-bottom-color:transparent;color:var(--text-color);opacity:1;}
+#cb-tabs button.active{border-color:var(--brand-orange);border-bottom-color:transparent;color:var(--text-color);opacity:1;}
+.cb-table{width:100%;border-collapse:collapse;}
+.cb-table th,.cb-table td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--table-border-color);vertical-align:top;}
+.cb-table th{color:var(--alt-text-color);font-weight:normal;}
+.cb-log{background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;font-family:var(--font-bitstream,Menlo,Consolas,monospace);font-size:12px;line-height:1.5;max-height:520px;overflow:auto;white-space:pre-wrap;word-break:break-all;}
+.cb-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;}
+.cb-ok{background:var(--green-100,#e6f4ea);color:var(--green-900,#137333);}
+.cb-fail{background:var(--red-100,#fce8e6);color:var(--red-900,#c5221f);}
+.cb-actions input[type=button]{margin-right:8px;}
+/* 设置标签的表单比较长，底部留点余量，免得贴着页脚 */
+#cb-pane-config{padding-bottom:1.5rem;}
+</style>
+
+<div id="cb-tabs">
+  <?php foreach ($tabs as $key => $label): ?>
+  <button type="button" class="<?=$key === $tab ? 'active' : ''?>" onclick="cbTab('<?=$key?>')"><?=_($label)?></button>
+  <?php endforeach; ?>
+</div>
+
+<!-- ======================= 证书状态 ======================= -->
+<div id="cb-pane-status" class="cb-pane"<?=$tab === 'status' ? '' : ' style="display:none"'?>>
+<?php cb_status_panel($st, $cb); ?>
+</div>
+
+<!-- ======================= 设置 ======================= -->
+<div id="cb-pane-config" class="cb-pane"<?=$tab === 'config' ? '' : ' style="display:none"'?>>
 <?php if ($missing): ?>
-<blockquote class="inline_help">
+<blockquote class="inline_help cb-help-open">
 <b>还差几项配置：<?=cb_e(implode('、', $missing))?></b><br>
-填写下方表单并点击 Apply。首次使用建议先勾选「测试环境」验证流程，确认无误后取消勾选并正式签发。
+填好后点「应用」。首次使用建议先勾选「测试环境」验证流程，确认无误后取消勾选并正式签发。
 </blockquote>
-<?php else: ?>
-<p>
-当前状态：<span class="<?=$healthText[0]?>"><b><?=$healthText[1]?></b></span>
-<?php if ($st['days'] !== null): ?>
-&nbsp;·&nbsp;<?=cb_days_html($st['days'])?>后到期
 <?php endif; ?>
-&nbsp;·&nbsp;<a href="/Utilities/CertStatus">查看证书详情、续期历史与日志 →</a>
+<blockquote id="cb-update-result" class="inline_help" style="display:none"></blockquote>
+<?php cb_form($cfg); ?>
+</div>
+
+<!-- ======================= 续期历史 ======================= -->
+<div id="cb-pane-history" class="cb-pane"<?=$tab === 'history' ? '' : ' style="display:none"'?>>
+<?php cb_history_panel($st, $cb); ?>
+</div>
+
+<!-- ======================= 运行日志 ======================= -->
+<div id="cb-pane-log" class="cb-pane"<?=$tab === 'log' ? '' : ' style="display:none"'?>>
+<p class="grey-text" style="font-size:12px;margin-bottom:6px">
+  <code>/boot/config/plugins/<?=$cb?>/certbot.log</code>，显示最后 400 行，超过 1 MiB 时自动截断。
 </p>
+<?php if (trim($log) === ''): ?>
+<blockquote class="inline_help cb-help-open">日志还是空的。</blockquote>
+<?php else: ?>
+<div class="cb-log"><?=cb_e($log)?></div>
 <?php endif; ?>
-
-<form markdown="1" method="POST" action="/update.php" target="progressFrame">
-<input type="hidden" name="#file" value="<?=$cb?>/<?=$cb?>.cfg">
-<input type="hidden" name="#include" value="/plugins/<?=$cb?>/include/update.php">
-
-_(Cloudflare API Token)_:
-: <input type="password" name="CF_API_TOKEN_NEW" id="cb-token" autocomplete="new-password"
-   placeholder="<?=cb_has_token() ? '已配置，留空则保持不变' : '粘贴你的 Cloudflare API Token'?>"
-   spellcheck="false" style="width:60%">
-: <input type="button" value="_(显示)_" onclick="cbToggle('cb-token',this)">
-: <input type="checkbox" name="CF_API_TOKEN_CLEAR" value="yes" id="cb-clear">
-  <label for="cb-clear">_(清除已保存的 Token)_</label>
-: <blockquote class="inline_help">
-在 Cloudflare 后台 <b>My Profile → API Tokens → Create Token</b> 创建，权限选择
-<b>Zone → DNS → Edit</b>，Zone Resources 选中要签发的域名。<br>
-Token 以 <code>dns_cloudflare_api_token</code> 形式保存于
-<code>/boot/config/plugins/<?=$cb?>/cloudflare.ini</code>，文件权限 600，不写入插件配置，也不会出现在日志中。
-</blockquote>
-
-_(邮箱)_:
-: <input type="email" name="ACME_EMAIL" value="<?=cb_e($cfg['ACME_EMAIL'])?>" style="width:40%">
-: <blockquote class="inline_help">Let's Encrypt 用于发送证书到期提醒，建议填写真实可收信的地址。</blockquote>
-
-_(Unraid 主机名)_:
-: <input type="text" name="UNRAID_HOSTNAME" value="<?=cb_e($cfg['UNRAID_HOSTNAME'])?>" style="width:40%">
-: <blockquote class="inline_help">
-必须与 Unraid 自身的服务器名一致。证书将写入
-<code>/boot/config/ssl/certs/<b>主机名</b>_unraid_bundle.pem</code>，文件名不一致时 webGUI 不会加载新证书。<br>
-Unraid 当前识别的名称是 <code><?=cb_e(cb_unraid_name())?></code>。
-</blockquote>
-
-_(域名列表)_:
-: <textarea name="DOMAINS" rows="4" style="width:60%" spellcheck="false"><?=cb_e($cfg['DOMAINS'])?></textarea>
-: <blockquote class="inline_help">
-以逗号或换行分隔，例如 <code>example.com, www.example.com</code>。
-<b>第一个域名为主域名</b>，证书目录名与合并生成的 bundle 均以它为准；所有域名必须位于同一个 Cloudflare 账号下。<br>
-需要通配符证书时填写 <code>*.example.com</code>（DNS-01 验证支持通配符，这也是选择 Cloudflare 而非 HTTP 验证的主要原因）。
-</blockquote>
-
-_(DNS 传播等待秒数)_:
-: <input type="number" name="PROPAGATION" value="<?=cb_e($cfg['PROPAGATION'])?>" min="10" max="900" style="width:100px">
-: <blockquote class="inline_help">
-certbot 创建 DNS 记录后等待多久再向 Let's Encrypt 确认，默认 60 秒。若经常验证失败，可调整至 60–120。
-</blockquote>
-
-_(证书存储目录)_:
-: <input type="text" name="CERT_DIR" value="<?=cb_e($cfg['CERT_DIR'])?>" style="width:60%">
-: <blockquote class="inline_help">
-certbot 的账号、证书与续期配置均存放于此，默认 <code>/boot/config/letsencrypt</code>。
-存放于 flash 的好处是<b>阵列未启动时也能续期</b>，而 webGUI 故障时往往正是这种情况。<br>
-改为 <code>/mnt/user/appdata/letsencrypt</code> 可减少 U 盘写入，但必须先启动阵列。
-</blockquote>
-
-_(自动续期频率)_:
-: <select name="SCHEDULE">
-  <?=mk_option($cfg['SCHEDULE'], 'daily',   _('每天检查一次（推荐）'))?>
-  <?=mk_option($cfg['SCHEDULE'], 'weekly',  _('每周检查一次'))?>
-  <?=mk_option($cfg['SCHEDULE'], 'monthly', _('每月检查一次'))?>
-  <?=mk_option($cfg['SCHEDULE'], 'off',     _('关闭自动续期'))?>
-  </select>
-: <blockquote class="inline_help">
-该项仅控制检查频率，不代表续期频率。certbot 会自行判断剩余有效期是否小于 30 天，未到期则直接跳过。
-</blockquote>
-
-_(阵列启动后自动检查)_:
-: <input type="hidden" name="RUN_AT_BOOT" value="no">
-  <input type="checkbox" name="RUN_AT_BOOT" value="yes" id="cb-boot" <?=cb_bool($cfg['RUN_AT_BOOT']) ? 'checked' : ''?>>
-  <label for="cb-boot">_(阵列启动完成后延迟 90 秒执行一次检查)_</label>
-: <blockquote class="inline_help">
-默认关闭。适用于证书过期导致 webGUI 报警、重启后需自动恢复的场景；通常情况下定时任务已足够。
-</blockquote>
-
-_(更新后重启 nginx)_:
-: <input type="hidden" name="RESTART_NGINX" value="no">
-  <input type="checkbox" name="RESTART_NGINX" value="yes" id="cb-restart" <?=cb_bool($cfg['RESTART_NGINX']) ? 'checked' : ''?>>
-  <label for="cb-restart">_(证书变化后自动重启 Unraid Web 管理服务)_</label>
-: <blockquote class="inline_help">
-证书内容未变化时不重启（脚本会比较合并结果）。重启会导致当前 webGUI 会话中断数秒。
-</blockquote>
-
-_(测试环境)_:
-: <input type="hidden" name="STAGING" value="no">
-  <input type="checkbox" name="STAGING" value="yes" id="cb-staging" <?=cb_bool($cfg['STAGING']) ? 'checked' : ''?>>
-  <label for="cb-staging">_(使用 Let's Encrypt 测试环境)_</label>
-: <blockquote class="inline_help">
-测试环境的速率限制宽松得多，适用于首次验证配置，但<b>签发的证书不受浏览器信任</b>。
-流程验证通过后取消勾选，再执行一次「强制续期」获取正式证书。
-</blockquote>
-
-: <input type="submit" name="#apply" value="_(应用)_" disabled>
-: <input type="button" value="_(立即检查并续期)_" onclick="cbRun('renew')">
-: <input type="button" value="_(强制续期)_" onclick="cbRun('force')">
-
-</form>
+</div>
 
 <script>
+// 切换标签：显示对应面板，并把 tab 写进地址栏（刷新、收藏都能回到同一标签）。
+// 用 replaceState 而不是 location.hash，免得给 Unraid 的 history 添乱。
+function cbTab(name) {
+  document.querySelectorAll('.cb-pane').forEach(function (el) { el.style.display = 'none'; });
+  document.querySelectorAll('#cb-tabs button').forEach(function (el) { el.classList.remove('active'); });
+  var pane = document.getElementById('cb-pane-' + name);
+  if (pane) pane.style.display = '';
+  var keys = Object.keys(<?=json_encode($tabs, JSON_UNESCAPED_UNICODE)?>);
+  var idx  = keys.indexOf(name);
+  var btns = document.querySelectorAll('#cb-tabs button');
+  if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
+  try {
+    var url = new URL(location.href);
+    url.searchParams.set('tab', name);
+    history.replaceState(null, '', url);
+  } catch (e) {}
+}
+
+// 真机外壳会在表单有改动时才启用「应用」；这里兜一份，
+// 保证直接深链到设置标签、或从别的标签切回来都能保存。
+function cbEnableApply(form) {
+  if (!form) return;
+  Array.prototype.forEach.call(form.querySelectorAll('input[type=submit][disabled]'), function (b) {
+    b.disabled = false;
+  });
+}
+document.addEventListener('input',  function (e) { cbEnableApply(e.target.form); }, true);
+document.addEventListener('change', function (e) { cbEnableApply(e.target.form); }, true);
+
+// 「显示 / 隐藏」Token
 function cbToggle(id, btn) {
   var el = document.getElementById(id);
   if (!el) return;
@@ -141,8 +143,24 @@ function cbToggle(id, btn) {
   el.type = show ? 'text' : 'password';
   btn.value = show ? '<?=_('隐藏')?>' : '<?=_('显示')?>';
 }
+
+// 续期类动作在对话框里跑，输出走 addLog
 function cbRun(action) {
-  var title = action === 'force' ? '<?=_('强制续期')?>' : '<?=_('检查并续期')?>';
-  openBox('/plugins/<?=$cb?>/include/exec.php?action=' + action, title, 800, 560);
+  var titles = {
+    renew:  '<?=_('检查并续期')?>',
+    force:  '<?=_('强制续期')?>',
+    docker: '<?=_('Docker 环境检查')?>'
+  };
+  openBox('/plugins/<?=$cb?>/include/exec.php?action=' + action, titles[action] || action, 820, 560);
+}
+
+// 保存结束后把结果显示在设置表单上方（进度输出仍由 Unraid 的 progressFrame 提供）。
+// 名字带 cb 前缀是插件自己的，避免和 Unraid 或主题里的同名函数撞车。
+function cbSaveResult(ok, msg) {
+  var panel = document.getElementById('cb-update-result');
+  if (!panel) return;
+  panel.style.display = '';
+  panel.className = 'inline_help cb-help-open';
+  panel.innerHTML = '<b>' + (msg || (ok ? '设置已保存' : '设置未保存')) + '</b>';
 }
 </script>

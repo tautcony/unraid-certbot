@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "unraid-certbot">
 <!ENTITY author    "tautcony">
-<!ENTITY version   "2026.09.10">
+<!ENTITY version   "2026.09.11">
 <!ENTITY launch    "Settings/UnraidCertbot">
 <!ENTITY github    "tautcony/unraid-certbot">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/master/&name;.plg">
@@ -19,6 +19,8 @@
         project="https://github.com/&github;">
 
 <CHANGES>
+###2026.09.11
+- 修正入口结构：设置 → 网络服务 → Unraid Certbot
 ###2026.09.10
 - 首个版本：Cloudflare DNS-01 验证，为 webGUI 签发并续期 Let's Encrypt 证书
 - 设置页配置 Token / 邮箱 / 主机名 / 域名 / 存储目录 / 续期频率
@@ -36,8 +38,8 @@ exit 0
 
 <FILE Name="/boot/config/plugins/&name;/&pkgfile;" Run="upgradepkg --install-new">
 <URL>https://github.com/&github;/releases/download/&version;/&pkgfile;</URL>
-<MD5>6317d59b5bdf282f6927df8b8860a72a</MD5>
-<SHA256>0b7bd923c780f49713464771560ca317a3cbdb30efd8c593b10c08245edd04e3</SHA256>
+<MD5>65f283fa53325a62dc8c3877ed76297f</MD5>
+<SHA256>c6a33f47a5c3d189a332e10aefef716a8da646cc50bcc46b9c2ed28c6d02915e</SHA256>
 </FILE>
 
 <FILE Run="/bin/bash">
