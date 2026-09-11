@@ -76,6 +76,7 @@
 .cb-actions input[type=button] { margin-right: 8px; }
 #cb-pane-config { padding-bottom: 1.5rem; }
 #cb-pane-config dl { margin: 0; padding: 0; }
+#cb-pane-config dt { cursor: help; }
 #cb-pane-config .cb-inline-btn { margin-left: .6rem; }
 #cb-pane-config textarea { width: 100%; max-width: 52rem; }
 #cb-pane-config input[type=text],

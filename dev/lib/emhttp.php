@@ -314,8 +314,7 @@ blockquote{width:100%;max-width:100ch;margin:1rem auto;text-align:left;padding:.
 blockquote a{color:var(--brand-orange);font-weight:600;}
 dd blockquote{padding-left:0;}
 blockquote.inline_help{display:none;margin:.6rem 0 0 0;font-size:1.2rem;}
-blockquote.inline_help.cb-help-open{display:block;}
-dt[data-cb-help]{cursor:help;}
+#cb-pane-config dt{cursor:help;}
 table{border-collapse:collapse;border-spacing:0;margin:0;width:100%;background-color:transparent;color:var(--text-color);}
 table th,table td{padding:6px 8px;text-align:left;vertical-align:top;border-bottom:1px solid var(--table-border-color);}
 table tbody tr:nth-child(even){background-color:var(--table-background-color);}
@@ -587,8 +586,8 @@ function cbHelpBlocks() {
 }
 function cbToggleHelp() {
   var blocks = cbHelpBlocks();
-  var anyOpen = blocks.some(function (b) { return b.classList.contains('cb-help-open'); });
-  blocks.forEach(function (b) { b.classList.toggle('cb-help-open', !anyOpen); });
+  var anyOpen = blocks.some(function (b) { return b.style.display === 'block'; });
+  blocks.forEach(function (b) { b.style.display = anyOpen ? '' : 'block'; });
 }
 
 function openBox(url, title, w, h) {
@@ -622,19 +621,6 @@ function cbUpdateDone(ok, msg) {
 
 document.addEventListener('DOMContentLoaded', function () {
   if ({$helpOpen}) cbToggleHelp();
-
-  // 真机上点标签展开对应说明
-  cbHelpBlocks().forEach(function (bq) {
-    var dd = bq.closest('dd');
-    var dt = null;
-    for (var n = dd; n; n = n.previousElementSibling) {
-      if (n.tagName === 'DT') { dt = n; break; }
-    }
-    if (!dt) return;
-    dt.setAttribute('data-cb-help', '');
-    dt.title = '点击展开/收起说明';
-    dt.addEventListener('click', function () { bq.classList.toggle('cb-help-open'); });
-  });
 
   // 真机上「应用」按钮有改动才启用
   function enableApply(form) {

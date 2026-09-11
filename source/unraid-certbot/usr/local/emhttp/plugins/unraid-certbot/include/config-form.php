@@ -21,7 +21,7 @@ function cb_form(array $cfg, array $fail = []): void
     $token = cb_has_token();
 ?>
 <?php if ($fail): ?>
-<blockquote class="inline_help cb-help-open">
+<blockquote class="inline_help" style="display:block">
 <b><?=_('待配置项')?>：<?=cb_e(implode('、', $fail))?></b><br>
 <?=_('填写后点「应用」。首次使用建议先启用「测试环境」验证流程。')?>
 </blockquote>

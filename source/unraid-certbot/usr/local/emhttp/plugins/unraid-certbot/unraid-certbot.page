@@ -76,7 +76,7 @@ $log = cb_log_tail(400);
   <code>/boot/config/plugins/<?=$cb?>/certbot.log</code>，显示最后 400 行，超过 1 MiB 时自动截断。
 </p>
 <?php if (trim($log) === ''): ?>
-<blockquote class="inline_help cb-help-open">暂无日志。</blockquote>
+<blockquote class="inline_help" style="display:block">暂无日志。</blockquote>
 <?php else: ?>
 <div class="cb-log"><?=cb_e($log)?></div>
 <?php endif; ?>
@@ -166,6 +166,31 @@ function cbRun(action) {
   openBox('/plugins/<?=$cb?>/include/exec.php?action=' + action, titles[action] || action, 820, 560);
 }
 
+// 帮助说明：点 dt 展开/收起对应 dd 里的 blockquote.inline_help。
+// Unraid 自带的 JS 靠向后遍历兄弟节点找 <dl>，但本插件的 blockquote
+// 嵌在 <dd> 里（前面还有 input/label 等），走不到 <dl>，所以这里自己绑。
+function cbBindHelp() {
+  var panes = document.querySelectorAll('#cb-pane-config dl');
+  for (var d = 0; d < panes.length; d++) {
+    var dts = panes[d].querySelectorAll('dt');
+    for (var i = 0; i < dts.length; i++) {
+      dts[i].style.cursor = 'help';
+      (function (dt) {
+        if (dt.dataset.cbHelp) return;
+        dt.dataset.cbHelp = '1';
+        dt.addEventListener('click', function () {
+          var dd = dt.nextElementSibling;
+          if (!dd || dd.tagName !== 'DD') return;
+          var bq = dd.querySelector('blockquote.inline_help');
+          if (!bq) return;
+          bq.style.display = bq.style.display === 'block' ? '' : 'block';
+        });
+      })(dts[i]);
+    }
+  }
+}
+cbBindHelp();
+
 // 保存结束后：显示结果，并重新取一次页面。
 // 重取的原因和历史/日志一样 —— 这张页面的数据是服务端渲染的，
 // 保存改变了配置（自动续期、证书目录等），不重取就会一直显示旧值。
@@ -173,8 +198,7 @@ function cbRun(action) {
 function cbSaveResult(ok, msg) {
   var panel = document.getElementById('cb-update-result');
   if (panel) {
-    panel.style.display = '';
-    panel.className = 'inline_help cb-help-open';
+    panel.style.display = 'block';
     panel.innerHTML = '<b>' + (msg || (ok ? '<?=_('设置已保存')?>' : '<?=_('设置未保存')?>')) + '</b>';
   }
   if (!ok) { return; }

@@ -20,7 +20,7 @@ function cb_status_panel(array $st, string $cb): void
     ][$st['health']];
 ?>
 <?php if (empty($st['fs_ok'])): ?>
-<blockquote class="inline_help cb-help-open">
+<blockquote class="inline_help" style="display:block">
 <b><?=_('证书目录不可用，续期将失败')?></b><br>
 <?=cb_e((string)$st['fs_reason'])?><br>
 <span class="grey-text">
@@ -59,7 +59,7 @@ function cb_status_panel(array $st, string $cb): void
   <tr><th>覆盖域名</th><td><?=cb_e(implode(', ', $st['bundle']['sans']))?></td></tr>
 </table>
 <?php else: ?>
-<blockquote class="inline_help cb-help-open">
+<blockquote class="inline_help" style="display:block">
 <b>尚未签发证书。</b>
 <?php if (!$st['bundle_path']): ?>
 先在 <a href="/Settings/UnraidCertbot?tab=config">设置</a> 里填写 Unraid 主机名。

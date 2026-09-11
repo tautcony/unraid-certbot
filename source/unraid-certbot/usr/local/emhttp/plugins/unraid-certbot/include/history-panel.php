@@ -12,7 +12,7 @@
 function cb_history_panel(array $st, string $cb): void
 {
     if (empty($st['history'])) {
-        echo '<blockquote class="inline_help cb-help-open">暂无记录。</blockquote>';
+        echo '<blockquote class="inline_help" style="display:block">暂无记录。</blockquote>';
         return;
     }
 ?>
