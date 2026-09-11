@@ -2,32 +2,30 @@
 /**
  * unraid-certbot - 动作执行端点
  *
- * 界面上的按钮通过 openBox() 打开这个文件，命令输出用 addLog() 实时回传。
- *
- * 安全：这里只接受白名单里的动作名，命令本身完全由常量拼成，
- * 用户输入不会出现在 shell 里。这个端点以 root 运行，改动请务必保守。
+ * 安全：仅接受白名单内的动作名，命令均由常量拼接构成，
+ * 用户输入不会进入 shell。本端点以 root 运行，修改须谨慎。
  */
 
 $docroot = $docroot ?? ($_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp');
 require_once "$docroot/plugins/dynamix/include/Wrappers.php";
 
-// exec.php 的输出全部是给界面 addLog 的 <script> 片段，禁止任何额外输出混进来
+// exec.php 的输出全部为界面 addLog 的 <script> 片段，禁止混入其他输出
 define('CB_NO_CLI_OUTPUT', true);
 
 require_once "$docroot/plugins/unraid-certbot/include/status.php";
 
 $plugin    = 'unraid-certbot';
-// 用 $docroot 推导而不是写死 /usr/local/emhttp，便于在测试环境里跑，也兼容非标准安装
+// 通过 $docroot 推导而非硬编码 /usr/local/emhttp，便于测试环境运行，并兼容非标准安装
 $pluginDir = "{$docroot}/plugins/{$plugin}";
 $script    = "{$pluginDir}/scripts/renew.sh";
-// 日志路径跟随 status.php 的沙箱规则
+// 日志路径遵循 status.php 的沙箱规则
 $logFile   = CB_LOG;
 
 header('Content-Type: text/html; charset=utf-8');
 
 /**
  * 动作白名单：动作名 => [命令行参数数组, 界面标题]
- * 命令固定是 renew.sh，参数也全部是写死的常量。
+ * 命令固定为 renew.sh，参数均为预设常量。
  */
 $actions = [
     'renew'  => [['--trigger=webgui'],                 '立即检查并续期'],
@@ -45,13 +43,13 @@ if (!isset($actions[$action])) {
 
 [$args, $title] = $actions[$action];
 
-// 输出流：优先用 Unraid 自带的 logging.htm（提供 addLog 与进度条样式）
+// 输出流：优先使用 Unraid 自带的 logging.htm（提供 addLog 与进度条样式）
 echo '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0">';
 $loggingHtm = "$docroot/logging.htm";
 if (is_file($loggingHtm)) {
     readfile($loggingHtm);
 } else {
-    // 兜底：logging.htm 不在时自带一份等价的实现
+    // 回退：logging.htm 缺失时使用等价的内置实现
     ?>
     <textarea id="log" rows="20" style="width:100%;font-family:monospace" readonly></textarea>
     <script>
@@ -80,7 +78,7 @@ write_log("=== {$title} ===");
 write_log('');
 
 if ($action === 'docker') {
-    // 单纯的排障动作：把 docker 环境情况打出来
+    // 排障动作：输出 docker 环境信息
     $dk = escapeshellarg(cb_docker_cmd());
     foreach ([
         'docker 路径'   => "command -v " . $dk,

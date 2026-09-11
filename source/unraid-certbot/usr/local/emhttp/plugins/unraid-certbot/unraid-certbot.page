@@ -6,14 +6,11 @@ Icon="certificate"
 /**
  * Unraid Certbot：设置 → 网络服务 → Unraid Certbot（唯一入口）。
  *
- * 整页三个标签，默认进入「证书状态」：
+ * 整页四个标签，默认进入「证书状态」：
  *   - 证书状态：整体状态、WebGUI 与 certbot 证书、运行环境、续期/强制续期按钮
  *   - 设置：Token / 邮箱 / 主机名 / 域名 / 存储目录 / 续期频率（include/config-form.php）
  *   - 续期历史：history.tsv 最近若干条
  *   - 运行日志：certbot.log 末尾若干行
- *
- * 没有二级入口，也没有弹窗；工具菜单里的 Cert Status 是同一页的另一个入口
- * （见同目录 CertStatus.page，它只做跳转，内容只有这一份）。
  *
  * 标签状态用 ?tab= 记录，刷新与收藏都能回到原标签。
  */
@@ -38,7 +35,7 @@ if (!isset($tabs[$tab])) {
     $tab = 'status';
 }
 
-// 缺配置时给出待办清单，避免用户不知道要填哪几项
+// 缺配置时给出待办清单，避免用户遗漏必填项
 $missing = [];
 if (!$st['configured']['token'])   $missing[] = 'Cloudflare API Token';
 if (!$st['configured']['email'])   $missing[] = '邮箱';
@@ -85,12 +82,12 @@ $log = cb_log_tail(400);
 <script>
 var cbTabKeys = <?=json_encode(array_keys($tabs), JSON_UNESCAPED_UNICODE)?>;
 var cbTabNow  = <?=json_encode($tab, JSON_UNESCAPED_UNICODE)?>;
-var cbDirty   = false;   // 「设置」标签里有改动还没保存
+var cbDirty   = false;   // 「设置」标签中存在未保存的改动
 
-// 证书状态里的实时数据（最近一次运行、日志尾部）是服务端渲染的，
-// 前端只切 display 永远看不到新内容。所以切标签走整页导航：
-// 服务端按新的 tab 重新渲染，历史与日志就是当前最新的。
-// 加 _ 参数是为了绕开浏览器缓存，导航后立刻用 replaceState 去掉它。
+// 证书状态中的实时数据（最近一次运行、日志尾部）由服务端渲染，
+// 前端仅切换 display 无法获取新内容。因此切换标签走整页导航：
+// 服务端按新 tab 重新渲染，历史与日志为当前最新值。
+// 加 _ 参数以绕过浏览器缓存，导航后立即用 replaceState 移除。
 function cbTab(name) {
   if (name === cbTabNow) { return; }
   if (cbTabNow === 'config' && cbDirty) {
@@ -104,8 +101,8 @@ function cbTab(name) {
   location.assign(url.toString());
 }
 
-// 真机外壳会在表单有改动时才启用「应用」；这里兜一份，
-// 保证直接深链到设置标签、或从别的标签切回来都能保存。
+// 真机外壳在表单改动时才启用「应用」；此处补充处理，
+// 保证直接深链到设置标签、或从其他标签切换回来均可保存。
 function cbEnableApply(form) {
   if (!form) return;
   Array.prototype.forEach.call(form.querySelectorAll('input[type=submit][disabled]'), function (b) {
@@ -136,7 +133,7 @@ function cbToggle(id, btn) {
   btn.value = show ? '<?=_('隐藏')?>' : '<?=_('显示')?>';
 }
 
-// 重取当前标签：历史/日志/配置都是服务端渲染的，只有重新请求才拿到最新值
+// 重取当前标签：历史/日志/配置均由服务端渲染，只有重新请求才能获取最新值
 function cbReload(saved) {
   var url = new URL(location.href);
   url.searchParams.set('tab', cbTabNow);
@@ -156,7 +153,7 @@ function cbReload(saved) {
   } catch (e) {}
 })();
 
-// 续期类动作在对话框里跑，输出走 addLog
+// 续期类动作在对话框中执行，输出经 addLog
 function cbRun(action) {
   var titles = {
     renew:  '<?=_('检查并续期')?>',
@@ -166,9 +163,9 @@ function cbRun(action) {
   openBox('/plugins/<?=$cb?>/include/exec.php?action=' + action, titles[action] || action, 820, 560);
 }
 
-// 帮助说明：点 dt 展开/收起对应 dd 里的 blockquote.inline_help。
-// Unraid 自带的 JS 靠向后遍历兄弟节点找 <dl>，但本插件的 blockquote
-// 嵌在 <dd> 里（前面还有 input/label 等），走不到 <dl>，所以这里自己绑。
+// 帮助说明：点击 dt 展开/收起对应 dd 内的 blockquote.inline_help。
+// Unraid 自带 JS 通过向后遍历兄弟节点查找 <dl>，但本插件的 blockquote
+// 嵌套在 <dd> 内（前面还有 input/label 等），无法到达 <dl>，因此此处自行绑定。
 function cbBindHelp() {
   var panes = document.querySelectorAll('#cb-pane-config dl');
   for (var d = 0; d < panes.length; d++) {
@@ -191,10 +188,10 @@ function cbBindHelp() {
 }
 cbBindHelp();
 
-// 保存结束后：显示结果，并重新取一次页面。
-// 重取的原因和历史/日志一样 —— 这张页面的数据是服务端渲染的，
-// 保存改变了配置（自动续期、证书目录等），不重取就会一直显示旧值。
-// 名字带 cb 前缀是插件自己的，避免和 Unraid 或主题里的同名函数撞车。
+// 保存结束后：显示结果，并重新请求页面。
+// 重取的原因与历史/日志相同 —— 本页面数据由服务端渲染，
+// 保存修改了配置（自动续期、证书目录等），不重取将一直显示旧值。
+// 函数名带 cb 前缀以避免与 Unraid 或主题中的同名函数冲突。
 function cbSaveResult(ok, msg) {
   var panel = document.getElementById('cb-update-result');
   if (panel) {
@@ -206,9 +203,9 @@ function cbSaveResult(ok, msg) {
   cbReloadWhenSaved(true);
 }
 
-// 保存（表单 POST 到 progressFrame）完成后重取本页：
-// 配置改了、历史/日志也写了一条，只有重新请求才能看到最新值。
-// 等进度框加载完再重取 —— 用定时器猜时间会在提交还没落地时就把页面带走。
+// 保存（表单 POST 至 progressFrame）完成后重取本页：
+// 配置已修改、历史/日志也写入新记录，只有重新请求才能看到最新值。
+// 等进度框加载完成再重取 —— 使用定时器估算时间会在提交尚未完成时就重定向页面。
 function cbReloadWhenSaved(saved) {
   var frame = document.getElementById('progressFrame');
   if (!frame || frame.dataset.cbWatching === '1') { return; }
@@ -217,11 +214,11 @@ function cbReloadWhenSaved(saved) {
     var doc = null;
     try { doc = frame.contentDocument; } catch (e) { return; }
     if (!doc || !doc.body) { return; }
-    if (!/设置已保存|保存成功/.test(doc.body.innerHTML)) { return; }  // 保存失败就别刷
+    if (!/设置已保存|保存成功/.test(doc.body.innerHTML)) { return; }  // 保存失败则不刷新
     frame.dataset.cbWatching = '';
-    setTimeout(function () { cbReload(saved); }, 1200);   // 先让提示露个面
+    setTimeout(function () { cbReload(saved); }, 1200);   // 让提示短暂显示
   };
   frame.addEventListener('load', fire);
-  fire();   // 万一提交已经完成了
+  fire();   // 提交可能已经完成
 }
 </script>

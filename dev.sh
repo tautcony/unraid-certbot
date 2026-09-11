@@ -122,7 +122,6 @@ case "$CMD" in
     command -v php >/dev/null 2>&1 || { echo "错误：需要 php 才能启动预览服务器" >&2; exit 1; }
     echo "==> 预览地址： http://127.0.0.1:${PORT}"
     echo "    设置页   ： http://127.0.0.1:${PORT}/Settings/UnraidCertbot"
-    echo "    状态页   ： http://127.0.0.1:${PORT}/Utilities/CertStatus"
     echo "    沙箱目录 ： ${DEV_ROOT}"
     echo "    停止服务 ： Ctrl-C"
     echo

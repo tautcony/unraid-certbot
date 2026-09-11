@@ -1,9 +1,6 @@
 <?php
 /**
- * unraid-certbot - 证书状态面板（标签内容，不含页面外壳）
- *
- * 只被 unraid-certbot.page 的「证书状态」标签调用，输出状态表、操作按钮和运行环境。
- * 拆成 include 是为了让这个文件专注排版，页面文件专注标签与表单。
+ * unraid-certbot - 证书状态面板
  */
 
 /**

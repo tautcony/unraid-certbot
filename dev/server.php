@@ -76,11 +76,6 @@ switch (true) {
         cb_dev_endpoint($PLUGIN_DIR, ltrim($uri, '/'), $DEV_ROOT);
         return true;
 
-    // 工具 → Cert Status：正文只是跳到设置页，预览里走同样的渲染路径
-    case strcasecmp($uri, '/Utilities/CertStatus') === 0:
-        cb_dev_render($PLUGIN_DIR, 'CertStatus.page', $DEV_ROOT, $SEED_HINT, $uri);
-        return true;
-
     case $uri === '/update.php':
         cb_dev_update($DOCROOT);
         return true;

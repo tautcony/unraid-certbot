@@ -378,7 +378,7 @@ function cb_dev_render_page(string $file, array $ctx = []): string
     [$head, $body] = cb_dev_page_parts($file);
     $html = cb_dev_eval_body($body);
 
-    // 正文发了 Location（比如 CertStatus.page 只是跳到设置页）：按真机的响应处理，
+    // 正文发了 Location：按真机的响应处理，
     // 不再套预览外壳，否则会把跳转页渲染成一张带菜单的空白页。
     $headers = headers_list();
     foreach ($headers as $h) {

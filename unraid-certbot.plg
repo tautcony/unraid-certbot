@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "unraid-certbot">
 <!ENTITY author    "tautcony">
-<!ENTITY version   "2026.09.11">
+<!ENTITY version   "2026.09.12">
 <!ENTITY launch    "Settings/UnraidCertbot">
 <!ENTITY github    "tautcony/unraid-certbot">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/master/&name;.plg">
@@ -19,23 +19,13 @@
         project="https://github.com/&github;">
 
 <CHANGES>
+###2026.09.12
+- 修正日志数据刷新
+- 修复设置表单布局异常
+- 新增证书目录文件系统检查
 ###2026.09.11
-- 改为单页结构：唯一入口在 设置 → 网络服务 → Unraid Certbot
-- 页面内四个标签：证书状态（默认）/ 设置 / 续期历史 / 运行日志
-- 修复运行日志与续期历史必须手动刷新才能看到最新内容：切换标签改为重新请求页面（服务端按新标签重渲染），点开即是当前最新
-- 设置标签有未保存改动时切标签会先确认，避免丢改动
-- 保存成功后自动重取页面，配置、历史与日志同步刷新；重取后仍显示「设置已保存」
-- 设置表单改用原生 HTML 的 dl/dt/dd 与 blockquote.inline_help，不再依赖 Markdown 定义列表渲染，修复真机上表单布局塌掉的问题
-- 页面样式移到 sheets/unraid-certbot.css，由 Unraid 自动引入，正文里不再内联 style
-- 移除 工具 → Cert Status 菜单入口；该地址保留为 302 跳转到证书状态标签，兼容旧链接
-- 修正保存结果回调与 Unraid 外壳同名函数冲突的问题
-- certbot 容器显式以 root 运行（--user 0:0），避免容器用户与 700 权限证书目录的属主不一致导致 PermissionError
-- 新增证书目录文件系统检查：保存设置时校验挂载选项与文件系统类型（FAT/exFAT/NTFS 直接拒绝）、实测能否建软链、是否可写，不通过则拒绝保存并给出原因
-- 状态页在证书目录不可用时直接告警，运行环境里显示文件系统与软链支持情况
-- 续期前预检同样检查文件系统与可写性，不再让 certbot 抛 EPERM
-- 失败原因从日志尾部提取后写入续期历史，不再只写「详见日志」造成自指
-- 「查看当前状态」输出新增证书目录体检：属主/权限、文件系统、可写性、是否支持软链
-- 证书目录推荐值改为 /mnt/user/appdata/letsencrypt（/boot 上的 config 分区不一定支持软链）###2026.09.10
+- 修正入口结构：设置 → 网络服务 → Unraid Certbot
+###2026.09.10
 - 首个版本：Cloudflare DNS-01 验证，为 webGUI 签发并续期 Let's Encrypt 证书
 - 设置页配置 Token / 邮箱 / 主机名 / 域名 / 存储目录 / 续期频率
 - 状态页展示证书详情、续期历史与运行日志，支持手动与强制续期
@@ -52,8 +42,8 @@ exit 0
 
 <FILE Name="/boot/config/plugins/&name;/&pkgfile;" Run="upgradepkg --install-new">
 <URL>https://github.com/&github;/releases/download/&version;/&pkgfile;</URL>
-<MD5>9ef466c8610964ab870794ba6e42e79a</MD5>
-<SHA256>48e1f404b97f7e0963bd1437f5eec93d097245c0b933549bf755c198f67128b1</SHA256>
+<MD5>64b0d8a42df3e72a9399a31773c11fe3</MD5>
+<SHA256>ca47091873ccee4c7599f19bfa2682cb651fb9043db1e4c833d8bbcc1ecad491</SHA256>
 </FILE>
 
 <FILE Run="/bin/bash">

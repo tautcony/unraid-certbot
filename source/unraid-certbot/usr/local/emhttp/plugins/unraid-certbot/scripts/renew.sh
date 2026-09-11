@@ -2,12 +2,12 @@
 #
 # unraid-certbot - 核心续期脚本
 #
-# 用 certbot/dns-cloudflare 容器通过 Cloudflare DNS-01 验证签发/续期证书，
-# 然后把 fullchain + privkey 合并成 Unraid webGUI 认的 bundle 文件。
+# 使用 certbot/dns-cloudflare 容器通过 Cloudflare DNS-01 验证签发/续期证书，
+# 将 fullchain + privkey 合并为 Unraid webGUI 使用的 bundle 文件。
 #
 # 用法与退出码见 --help。
 #
-# 本地调试：CB_DEV_ROOT 把绝对路径映射到沙箱，CB_DOCKER 换成假 docker，
+# 本地调试：CB_DEV_ROOT 将绝对路径映射至沙箱，CB_DOCKER 切换为模拟实现，
 # 两者由 dev.sh 导出，详见 dev/README.md。
 #
 set -uo pipefail
@@ -49,7 +49,7 @@ SSL_CERTS_DIR="$(syspath "/boot/config/ssl/certs")"
 NGINX_RC="$(syspath "/etc/rc.d/rc.nginx")"
 DOCKER="${CB_DOCKER:-docker}"
 
-MAX_LOG_BYTES=1048576   # 1 MiB，超过则截断保留后半
+MAX_LOG_BYTES=1048576   # 1 MiB，超过则截断保留后半部分
 MAX_HISTORY_LINES=200
 
 FORCE="no"
@@ -116,22 +116,22 @@ log() {
   [ "$QUIET" = "yes" ] || printf '%s\n' "$msg"
 }
 
-# stat 的可移植封装：Unraid 是 GNU coreutils，macOS 的 BSD stat 参数不同。
-# 本地沙箱（macOS）也要能跑，所以两种都兼容。
+# stat 的可移植封装：Unraid 使用 GNU coreutils，macOS 使用 BSD stat，参数不同。
+# 本地沙箱（macOS）也需运行，因此兼容两种实现。
 cb_own() {  # 属主:组 权限
   stat -c '%U:%G %a' "$1" 2>/dev/null || stat -f '%Su:%Sg %Lp' "$1" 2>/dev/null || printf '?'
 }
 cb_fstype() {
-  # /proc/mounts 在 Unraid(Linux) 上最直接；本地沙箱(macOS) 退回 df
+  # /proc/mounts 在 Unraid(Linux) 上最直接；本地沙箱(macOS) 回退至 df
   local t
   t=$(awk -v d="$1" '$2==d {print $3; exit}' /proc/mounts 2>/dev/null)
   [ -n "$t" ] || t=$(df -T "$1" 2>/dev/null | awk 'NR==2 {print $2}')
   printf '%s' "${t:-?}"
 }
 
-# 证书目录体检：certbot 在容器里要跨 /etc/letsencrypt/archive 与 live 建符号链接，
+# 证书目录检查：certbot 在容器内需跨 /etc/letsencrypt/archive 与 live 创建符号链接，
 # 目录必须 (a) 容器进程可写、(b) 底层文件系统支持符号链接。
-# 这两点不满足时 certbot 只报 EPERM，很容易被当成 Unraid 权限问题排查半天。
+# 不满足时 certbot 仅报 EPERM，易被误判为 Unraid 权限问题。
 audit_cert_dir() {
   local probe="${CERT_DIR}/.cb-probe-$$"
   local fstype mountopts
@@ -192,10 +192,10 @@ record_history() {
   fi
 }
 
-# certbot 自己的报错只有最后一两行有用（前面是 Saving debug log / Waiting 之类）。
-# 历史记录里如果只写「详见日志」，用户看到的就是「失败，详见日志」而日志里还是
-# 「失败，详见日志」这种自指循环，所以这里把它最后一句抓出来。
-# 注意本函数在 fail() 之前调用，日志里还没有本次的 ❌ 行。
+# certbot 自身报错仅末尾几行有效（前面为 Saving debug log / Waiting 等）。
+# 历史记录若仅写「详见日志」，用户看到「失败，详见日志」后查阅日志仍是
+# 「失败，详见日志」形成自指循环，因此此处提取末尾关键信息。
+# 注意本函数在 fail() 之前调用，日志中尚无本次的 ❌ 行。
 certbot_reason() {
   [ -f "$LOG_FILE" ] || return 0
   tail -n 25 "$LOG_FILE" 2>/dev/null \
@@ -217,8 +217,8 @@ fail() {
 # ---------------------------------------------------------------------------
 # 读取配置
 #
-# default.cfg 先读，用户 cfg 后读覆盖之。这里刻意不用 source，
-# 因为配置文件在 flash 上、可被手工编辑，source 会执行其中的 $(...) 。
+# 先读 default.cfg，后读用户 cfg 覆盖。此处不使用 source，
+# 因配置文件位于 flash 上、可被手工编辑，source 会执行其中的 $(...) 。
 # ---------------------------------------------------------------------------
 
 load_cfg() {
@@ -267,7 +267,7 @@ load_cfg
 : "${RESTART_NGINX:=yes}"
 : "${STAGING:=no}"
 
-# 配置里的证书目录同样要套沙箱前缀
+# 配置中的证书目录同样需添加沙箱前缀
 CERT_DIR="$(syspath "$CERT_DIR")"
 
 [ "$STAGING_OVERRIDE" = "yes" ] && STAGING="yes"
@@ -328,8 +328,8 @@ esac
 
 # 域名解析：逗号/空白/分号分隔，去重保序
 #
-# 注意 while read 循环读不到「最后一行没有换行符」的内容，
-# 所以这里显式补一个换行，否则会静默丢掉最后一个域名。
+# 注意 while read 循环无法读取「末行无换行符」的内容，
+# 此处显式补换行，否则会静默丢失最后一个域名。
 DOMAIN_ARRAY=()
 while IFS= read -r d; do
   [ -n "$d" ] || continue
@@ -357,7 +357,7 @@ fi
 printf '%s' "$$" > "${LOCK_DIR}/pid"
 trap 'rm -rf "$LOCK_DIR"' EXIT
 
-# Docker 可用性 —— 给出明确原因，而不是让 docker run 抛晦涩错误
+# Docker 可用性 —— 给出明确原因，避免 docker run 抛出晦涩错误
 if ! command -v "$DOCKER" >/dev/null 2>&1; then
   fail 4 "未找到 docker 命令"
 fi
@@ -375,9 +375,9 @@ fi
 mkdir -p "$CERT_DIR" || fail 1 "无法创建证书目录 ${CERT_DIR}"
 chmod 700 "$CERT_DIR" 2>/dev/null
 
-# certbot 会在 /etc/letsencrypt 下建符号链接（archive -> live）。
-# 底层文件系统不支持软链时它只报 EPERM，先自己探一次，给出能看懂的结论。
-# 已知的 FAT 家族直接点名，提示更具体；其余靠下面的实测兜底。
+# certbot 在 /etc/letsencrypt 下创建符号链接（archive -> live）。
+# 底层文件系统不支持符号链接时仅报 EPERM，此处提前探测并给出明确结论。
+# 已知的 FAT 系列直接指明，提示更具体；其余通过下面的实测回退。
 case "$(echo "$(cb_fstype "$CERT_DIR")" | tr 'A-Z' 'a-z')" in
   vfat|msdos|exfat|fat|fat32|ntfs|ntfs3)
     fail 2 "证书目录位于 $(cb_fstype "$CERT_DIR") 文件系统，不支持符号链接，请改用 /mnt/user/appdata/letsencrypt（需先启动阵列）"
@@ -407,8 +407,8 @@ CERTBOT_ARGS=(
   --config-dir /etc/letsencrypt
   --work-dir /etc/letsencrypt/work
   --logs-dir /etc/letsencrypt/logs
-  # 固定证书名，否则通配符证书（*.example.com）的目录名会随 certbot 版本变化，
-  # 导致下面拼出的 live 路径找不到文件
+  # 固定证书名，否则通配符证书（*.example.com）的目录名随 certbot 版本变化，
+  # 导致后续拼接的 live 路径找不到文件
   --cert-name "$PRIMARY_DOMAIN"
 )
 

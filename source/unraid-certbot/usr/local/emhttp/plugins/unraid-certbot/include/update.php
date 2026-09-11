@@ -2,19 +2,19 @@
 /**
  * unraid-certbot - 设置校验
  *
- * 由 /usr/local/emhttp/update.php 通过表单里的 #include 隐藏字段在「写入配置文件之前」执行。
- * 校验不通过时把 $save 置为 false 拒绝保存，并用 addLog() 把原因显示在界面上。
+ * 由 /usr/local/emhttp/update.php 通过表单 #include 隐藏字段在「写入配置文件之前」执行。
+ * 校验不通过时将 $save 置为 false 拒绝保存，并通过 addLog() 在界面显示原因。
  *
- * 除了校验，这里还负责两件配置写入之外的事：
- *   1. 把 Cloudflare Token 写进独立的 600 权限凭据文件（不落在 .cfg 里）
+ * 除校验外，还负责两项配置写入之外的工作：
+ *   1. 将 Cloudflare Token 写入独立的 600 权限凭据文件（不写入 .cfg）
  *   2. 按所选频率重建 cron 条目
  */
 
 $docroot = $docroot ?? ($_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp');
 require_once "$docroot/plugins/dynamix/include/Wrappers.php";
 
-// 阻止 status.php 在 CLI 下打印摘要 —— 这里的 stdout 是给界面的 addLog 用的，
-// 混进别的输出会破坏设置保存流程。
+// 阻止 status.php 在 CLI 下打印摘要 —— 此处 stdout 用于界面 addLog，
+// 混入其他输出会破坏设置保存流程。
 define('CB_NO_CLI_OUTPUT', true);
 require_once "$docroot/plugins/unraid-certbot/include/status.php";
 
@@ -23,7 +23,7 @@ $cbPluginDir = CB_PLUGIN_DIR;
 $cbCfgDir    = CB_CFG_DIR;
 $cbCredFile  = CB_CRED_FILE;
 
-/** 把一行消息推给界面上的日志框 */
+/** 将一行消息输出至界面日志框 */
 function cb_say(string $msg, string $prefix = ''): void
 {
     $msg = str_replace(["\n", '"'], ['<br>', '\\"'], $prefix . $msg);
@@ -32,8 +32,8 @@ function cb_say(string $msg, string $prefix = ''): void
 }
 
 /**
- * 校验错误清单。用函数内 static 而非 `global $cbErrors`：
- * 本地调试是在函数里 include 本文件的，那时 global 取不到外层变量。
+ * 校验错误清单。使用函数内 static 而非 `global $cbErrors`：
+ * 本地调试时在函数内 include 本文件，此时 global 无法访问外层变量。
  */
 function cb_errors(?string $add = null): array
 {
@@ -56,7 +56,7 @@ function cb_notice(string $msg): void
 }
 
 // ---------------------------------------------------------------------------
-// 域名：规范化后写回 $_POST，让存进 .cfg 的是干净的值
+// 域名：规范化后写回 $_POST，确保写入 .cfg 的值符合规范
 // ---------------------------------------------------------------------------
 
 $rawDomains = (string)($_POST['DOMAINS'] ?? '');
@@ -90,7 +90,7 @@ if ($email === '') {
 }
 
 // ---------------------------------------------------------------------------
-// Unraid 主机名（决定 bundle 文件名，必须和 Unraid 自己认的名字一致）
+// Unraid 主机名（决定 bundle 文件名，必须与 Unraid 识别的名称一致）
 // ---------------------------------------------------------------------------
 
 $host = trim((string)($_POST['UNRAID_HOSTNAME'] ?? ''));
@@ -126,28 +126,28 @@ if ($certDir[0] !== '/') {
 } elseif (strpos($certDir, ' ') !== false) {
     cb_error('证书目录不能包含空格');
 } else {
-    // .cfg 里存 Unraid 上的路径，落盘时再映射到沙箱
+    // .cfg 中存储 Unraid 上的路径，落盘时映射至沙箱
     $_POST['CERT_DIR'] = $certDir;
     $realCertDir = cb_syspath($certDir);
 
-    // 文件系统能力检查：certbot 要在 live/ 与 archive/ 之间建软链，
-    // 放在 FAT/exFAT 上必然失败。这里直接拦住，别等续期时才炸出一句 EPERM。
+    // 文件系统能力检查：certbot 需在 live/ 与 archive/ 之间创建符号链接，
+    // FAT/exFAT 上必然失败。此处提前拦截，避免续期时才抛出 EPERM。
     [$fsOk, $fsReason, $fsInfo] = cb_fs_check($realCertDir, true);
     if (!$fsOk) {
-        // 沙箱下 $fsReason 里是映射后的路径，显示前还原成配置里的路径
+        // 沙箱下 $fsReason 为映射后的路径，显示前还原为配置中的路径
         cb_error(str_replace($realCertDir, $certDir, $fsReason));
     } else {
         $summary = cb_fs_summary($fsInfo);
         cb_notice("证书目录可用：{$certDir}" . ($summary !== '' ? "（{$summary}）" : ''));
         if ($fsInfo['symlink'] === null) {
-            // 目录刚建出来但没法测（例如父目录只读），续期前还会再检一次
+            // 目录刚创建但无法检测（如父目录只读），续期前将重新检查
             cb_say('⚠️ 未能完成目录自检，续期前将重新检查');
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// 复选框：未勾选时浏览器不提交该字段，所以界面上放了同名的 hidden "no"
+// 复选框：未勾选时浏览器不提交该字段，因此界面放置同名的 hidden "no"
 // ---------------------------------------------------------------------------
 
 foreach (['RESTART_NGINX', 'STAGING', 'RUN_AT_BOOT'] as $flag) {
@@ -157,9 +157,9 @@ foreach (['RESTART_NGINX', 'STAGING', 'RUN_AT_BOOT'] as $flag) {
 // ---------------------------------------------------------------------------
 // Cloudflare Token
 //
-// 表单字段叫 CF_API_TOKEN_NEW，刻意不同于任何 .cfg 键，
-// 这样它不会被 update.php 写进配置文件（写完这里就把它从 $_POST 里摘掉）。
-// Token 只存在于 600 权限的 cloudflare.ini 里。
+// 表单字段名为 CF_API_TOKEN_NEW，刻意区别于任何 .cfg 键，
+// 避免被 update.php 写入配置文件（处理完后即从 $_POST 中移除）。
+// Token 仅存储于 600 权限的 cloudflare.ini。
 // ---------------------------------------------------------------------------
 
 $newToken  = trim((string)($_POST['CF_API_TOKEN_NEW'] ?? ''));
@@ -192,12 +192,12 @@ if ($clearTok) {
         }
     }
 } elseif (!cb_has_token()) {
-    // 既没填新的，也没有旧的
+    // 未提交新 Token 且无已保存 Token
     cb_error('请填写 Cloudflare API Token');
 }
 
 // ---------------------------------------------------------------------------
-// 只有前面都通过了，才去动 cron
+// 只有前面都通过了，才更新 cron
 // ---------------------------------------------------------------------------
 
 if (cb_errors() === []) {
@@ -224,16 +224,16 @@ if (cb_errors() === []) {
 
     cb_notice('设置已保存');
 } else {
-    // 拒绝写入，界面上保留用户输入让他改。
-    // 注意：Token 是单独存进 cloudflare.ini 的，上面已经写过了 —— 这里要说清楚，
-    // 否则用户会以为 Token 也没存上，修完别的字段后又重新粘贴一遍。
+    // 拒绝写入，界面保留用户输入以便修改。
+    // 注意：Token 单独存储于 cloudflare.ini，上面已写入 —— 此处需说明，
+    // 否则用户会误以为 Token 未保存，修改其他字段后重复粘贴。
     $save = false;
     cb_say('设置未保存，请修正上述问题', '⚠️ ');
     cb_say('（Token 已单独保存，无需重新输入）');
 }
 
-// 设置页的「设置」标签上有一块 #cb-update-result。这段脚本是在 progressFrame
-// 这个 iframe 里执行的，所以要经 parent 调过去；进度框里的 addLog 输出照旧。
+// 设置页「设置」标签内有 #cb-update-result 区域。此脚本在 progressFrame
+// iframe 内执行，需通过 parent 调用；进度框的 addLog 输出保持不变。
 $cbResultMsg = $save ? '设置已保存' : '设置未保存';
 echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult('
    . ($save ? 'true' : 'false') . ',"' . $cbResultMsg . '");}</script>';

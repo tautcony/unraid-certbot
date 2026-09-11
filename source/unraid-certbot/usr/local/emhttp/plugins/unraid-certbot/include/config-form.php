@@ -2,12 +2,6 @@
 /**
  * unraid-certbot - 设置表单
  *
- * 只被 unraid-certbot.page 的「设置」标签调用，不是独立页面。
- *
- * 这里全部用原生 HTML 写死 <dl>/<dt>/<dd> 与 input，不依赖 Unraid 的 Markdown
- * 渲染：早期版本写成 `_(标签)_:` 的定义列表，在真机上没被渲染成表单，整页样式塌掉。
- * 文案走 Unraid 自己的 _() 翻译，和核心设置页一致。
- *
  * 提交后由 Unraid 的 /update.php 调用 include/update.php 校验并写入配置。
  */
 
@@ -23,7 +17,7 @@ function cb_form(array $cfg, array $fail = []): void
 <?php if ($fail): ?>
 <blockquote class="inline_help" style="display:block">
 <b><?=_('待配置项')?>：<?=cb_e(implode('、', $fail))?></b><br>
-<?=_('填写后点「应用」。首次使用建议先启用「测试环境」验证流程。')?>
+<?=_('填写后点击「应用」。首次使用建议先启用「测试环境」验证流程。')?>
 </blockquote>
 <?php endif; ?>
 

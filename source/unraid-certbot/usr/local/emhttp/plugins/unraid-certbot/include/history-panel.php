@@ -1,8 +1,6 @@
 <?php
 /**
- * unraid-certbot - 续期历史面板（标签内容，不含页面外壳与标题）
- *
- * 只被 unraid-certbot.page 的「续期历史」标签调用。
+ * unraid-certbot - 续期历史面板
  */
 
 /**

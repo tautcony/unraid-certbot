@@ -1,11 +1,6 @@
 <?php
 /**
  * unraid-certbot - 状态读取
- *
- * 被两个 .page 共用，也可以直接在终端里跑：
- *   php -f /usr/local/emhttp/plugins/unraid-certbot/include/status.php
- *
- * 这里只做只读操作，不会发起任何续期请求。
  */
 
 const CB_PLUGIN      = 'unraid-certbot';
@@ -49,23 +44,23 @@ function cb_bool($v): bool
 }
 
 /**
- * 宽容地读一个 ini 配置文件。
+ * 容错读取 ini 配置文件。
  *
- * 不能直接用 parse_ini_file()：配置文件在 flash 上、用户可以手改，
- * 一旦出现注释里的括号或写错的字符，parse_ini_file 会整份返回 false，
- * 状态页就整个白掉了。Unraid 自己的 my_parse_ini_file 也是先剥注释再解析的。
+ * 不直接使用 parse_ini_file()：配置文件位于 flash 上，用户可能手工编辑，
+ * 注释中出现括号或非法字符时，parse_ini_file 会整体返回 false，
+ * 导致状态页空白。Unraid 自带的 my_parse_ini_file 同样先剥离注释再解析。
  */
 function cb_parse_cfg(string $file): array
 {
     if (!is_file($file) || !is_readable($file)) {
         return [];
     }
-    // 先用原生解析（最快的路径，且能处理引号里的 # 号）
+    // 优先使用原生解析（性能最佳，且能处理引号中的 # 号）
     $r = @parse_ini_file($file, false, INI_SCANNER_RAW);
     if (is_array($r)) {
         return $r;
     }
-    // 退化路径：逐行手工解析，容忍各种脏数据
+    // 回退路径：逐行手工解析，容忍非法字符
     $out = [];
     foreach ((array)@file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         $line = trim($line);
@@ -133,7 +128,7 @@ function cb_has_token(): bool
         && (bool)preg_match('/^\s*dns_cloudflare_api_token\s*=\s*\S+/m', (string)@file_get_contents(CB_CRED_FILE));
 }
 
-/** 读取 PEM 里的第一张证书，返回摘要信息；读不到返回 null */
+/** 读取 PEM 中的第一张证书并返回摘要信息；无法读取时返回 null */
 function cb_cert_info(?string $file): ?array
 {
     if (!$file || !is_readable($file) || filesize($file) === 0) {
@@ -214,7 +209,7 @@ function cb_log_tail(int $lines = 400): string
     return implode("\n", array_slice($all, -$lines));
 }
 
-/** docker 可执行文件；本地调试时 dev.sh 用 CB_DOCKER 指向假实现 */
+/** docker 可执行文件；本地调试时 dev.sh 通过 CB_DOCKER 指向模拟实现 */
 function cb_docker_cmd(): string
 {
     static $cmd = null;
@@ -227,7 +222,7 @@ function cb_docker_cmd(): string
     return $cmd;
 }
 
-/** Docker 是否可用（阵列没起时为 false） */
+/** Docker 是否可用（阵列未启动时为 false） */
 function cb_docker_ok(): bool
 {
     static $ok = null;
@@ -252,12 +247,12 @@ function cb_image_ok(): bool
 /**
  * 证书目录的文件系统能力检查。
  *
- * certbot 会在 /etc/letsencrypt 下把 archive/<域名>/xxx.pem 链接成
- * live/<域名>/xxx.pem，也就是必须能建符号链接。FAT / exFAT 之类不支持软链的
- * 文件系统上，certbot 只会抛一句 PermissionError (EPERM)，看起来像权限问题，
- * 实际是文件系统不支持。所以这里提前把结论算出来。
+ * certbot 在 /etc/letsencrypt 下将 archive/<域名>/xxx.pem 链接为
+ * live/<域名>/xxx.pem，因此底层文件系统必须支持符号链接。FAT / exFAT 等
+ * 不支持符号链接的文件系统上，certbot 仅抛出 PermissionError (EPERM)，
+ * 表现为权限错误，实际原因为文件系统不支持。此处提前判定并返回结论。
  *
- * 返回 [ok, reason, 详情数组]；ok=false 时 reason 是可以直接显示的结论。
+ * 返回 [ok, reason, 详情数组]；ok=false 时 reason 为可直接显示的结论。
  */
 function cb_fs_check(string $dir, bool $create = false): array
 {
@@ -266,7 +261,7 @@ function cb_fs_check(string $dir, bool $create = false): array
         'real'     => $dir,
         'fstype'   => '',
         'ro'       => false,
-        'symlink'  => null,   // null=未测到
+        'symlink'  => null,   // null=未检测
         'writable' => null,
     ];
 
@@ -276,7 +271,7 @@ function cb_fs_check(string $dir, bool $create = false): array
             @mkdir($real, 0700, true);
         }
         if (!is_dir($real)) {
-            // 目录还不存在：就近找一个已存在的父目录来判断文件系统能力
+            // 目录不存在：就近查找已存在的父目录以判定文件系统能力
             $probe = $real;
             while ($probe !== '' && $probe !== '/' && !is_dir($probe)) {
                 $probe = dirname($probe);
@@ -286,7 +281,7 @@ function cb_fs_check(string $dir, bool $create = false): array
     }
     $info['real'] = $real;
 
-    // 文件系统类型与挂载选项：取挂载点最长的那个（bind mount / 子卷都能对上）
+    // 文件系统类型与挂载选项：取挂载点最长匹配项（兼容 bind mount / 子卷）
     $mounts = @file_get_contents('/proc/mounts');
     if ($mounts !== false) {
         $best = '';
@@ -306,7 +301,7 @@ function cb_fs_check(string $dir, bool $create = false): array
         $info['mount'] = $best;
     }
     if ($info['fstype'] === '') {
-        // 非 Linux（本地调试）拿不到 /proc/mounts，按平台兜底
+        // 非 Linux（本地调试）无法读取 /proc/mounts，按平台回退
         $arg = escapeshellarg($real);
         if (PHP_OS_FAMILY === 'Darwin') {
             $out = @shell_exec("diskutil info {$arg} 2>/dev/null | awk -F: '/File System Personality/ {gsub(/^ +| +$/, \"\", $2); print $2}'");
@@ -318,7 +313,7 @@ function cb_fs_check(string $dir, bool $create = false): array
 
     $info['writable'] = is_writable($real);
 
-    // 真建一个软链再删掉：这是唯一可靠的判定方式
+    // 实际创建符号链接再删除：唯一可靠的判定方式
     $probeFile = $real . '/.cb-fsprobe-' . getmypid();
     $probeLink = $probeFile . '.lnk';
     if (@file_put_contents($probeFile, 'x') !== false) {
@@ -329,8 +324,8 @@ function cb_fs_check(string $dir, bool $create = false): array
         @unlink($probeFile);
     }
 
-    // 本地调试用：CB_FAKE_FSTYPE=vfat 可以模拟 FAT 上的目录，
-    // 用来验证「不支持软链就拒绝保存」这条分支（真机不需要设置）
+    // 本地调试用：CB_FAKE_FSTYPE=vfat 模拟 FAT 上的目录，
+    // 用于验证「不支持符号链接则拒绝保存」分支（生产环境无需设置）
     if (($fake = trim((string)getenv('CB_FAKE_FSTYPE'))) !== '') {
         $info['fstype'] = $fake;
     }
@@ -353,7 +348,7 @@ function cb_fs_check(string $dir, bool $create = false): array
 }
 
 /**
- * 把 cb_fs_check 的详情压成一行，给设置页/状态页显示。
+ * 将 cb_fs_check 的详情压缩为一行，用于设置页/状态页显示。
  */
 function cb_fs_summary(array $info): string
 {
@@ -379,7 +374,7 @@ function cb_status(array $cfg): array
     $primary = $domains[0] ?? '';
     $host    = trim((string)($cfg['UNRAID_HOSTNAME'] ?? ''));
     $certDir = rtrim(trim((string)($cfg['CERT_DIR'] ?? '')), '/') ?: '/boot/config/letsencrypt';
-    // 配置里存的是 Unraid 上的路径，本地调试也要挂到沙箱
+    // 配置中存储 Unraid 上的路径，本地调试时需映射至沙箱
     $certDir = cb_syspath($certDir);
     [$fsOk, $fsReason, $fsInfo] = cb_fs_check($certDir);
 
@@ -400,7 +395,7 @@ function cb_status(array $cfg): array
         }
     }
 
-    // 整体健康度：以 webGUI 实际使用的那张证书（bundle）为准
+    // 整体健康度：以 webGUI 实际使用的证书（bundle）为准
     $days = $bundle['days'] ?? ($live['days'] ?? null);
     if ($days === null) {
         $health = 'unknown';
@@ -490,8 +485,8 @@ function cb_schedule_label(string $s): string
 }
 
 /**
- * Unraid 自己的服务器名 —— 证书 bundle 的文件名必须与它一致。
- * 优先读 /var/local/emhttp/var.ini 的 NAME，读不到就退回系统 hostname。
+ * Unraid 服务器名 —— 证书 bundle 的文件名必须与之一致。
+ * 优先读取 /var/local/emhttp/var.ini 的 NAME，失败时回退至系统 hostname。
  */
 function cb_unraid_name(): string
 {

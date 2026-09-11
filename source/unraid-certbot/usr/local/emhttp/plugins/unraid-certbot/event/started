@@ -2,11 +2,11 @@
 #
 # unraid-certbot - emhttp 事件钩子：阵列启动完成（started）
 #
-# 默认关闭。只有用户在设置页勾选「阵列启动后自动检查一次」才会执行，
-# 因为绝大多数情况下 cron 定时检查已经够用。
+# 默认关闭。仅当用户在设置页勾选「阵列启动后自动检查一次」时执行，
+# 因为多数情况下 cron 定时检查已足够。
 #
-# emhttp 会阻塞等事件脚本返回，所以真正的续期必须丢到后台，
-# 否则会卡住整个启动流程。
+# emhttp 会阻塞等待事件脚本返回，因此实际续期须转至后台执行，
+# 否则会阻塞整个启动流程。
 
 PLUGIN="unraid-certbot"
 
@@ -28,7 +28,7 @@ if [ -f "$CFG_FILE" ]; then
 fi
 [ "$run_at_boot" = "yes" ] || exit 0
 
-# 等 Docker 守护进程就绪再跑，失败也无所谓 —— cron 还会照常检查
+# 等 Docker 守护进程就绪再执行，失败也无妨 —— cron 会照常检查
 ( sleep 90; "${PLUGIN_DIR}/scripts/renew.sh" --quiet --trigger=boot ) >/dev/null 2>&1 &
 
 exit 0
