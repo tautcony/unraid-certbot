@@ -1,0 +1,30 @@
+build.sh
+  h_3705811fa4502c 66
+dev/README.md
+  h_3705811fa4502c 18,24-26
+dev/lib/emhttp.php
+  h_3705811fa4502c 468-480,489
+dev/server.php
+  h_3705811fa4502c 89-93
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/CertStatus.page
+  h_3705811fa4502c 4,6-8
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/config-form.php
+  h_3705811fa4502c 3,5-11,15-16,18,20-21,23-30,34-46,48-54,56-64,66-74,76-82,84-92,94-105,107-114,116-123,125-134,136
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status-panel.php
+  h_3705811fa4502c 23-25
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/sheets/unraid-certbot.css
+  h_3705811fa4502c 1-85
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/unraid-certbot.page
+  h_3705811fa4502c 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "367cb5e9999a389d6e512f0c354f9aeeddcd1014",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
