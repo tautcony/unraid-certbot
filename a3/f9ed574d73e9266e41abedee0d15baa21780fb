@@ -1,0 +1,32 @@
+README.md
+  h_3705811fa4502c 7,15-16,19,22,28-39,45-47,52,55,65,67,69,72,76,79-81,84,86,90
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/config-form.php
+  h_3705811fa4502c 25-26,38,44,52,60-61,70,78,86-87,100,109,118,127-128
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/exec.php
+  h_3705811fa4502c 106,111,114,126,148-150
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/history-panel.php
+  h_3705811fa4502c 15
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status-panel.php
+  h_3705811fa4502c 22-33,63,67,82,95-102
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status.php
+  h_3705811fa4502c 252-372,384,438-441
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/update.php
+  h_3705811fa4502c 74,85,98,100,132-145,176,196,222,231-232
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/scripts/renew.sh
+  h_3705811fa4502c 119-177,195-209,301,313,316,319,322,350,362,365,369,371,378-394,417,427,435,443-447,472,479,492,496,499,503
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/unraid-certbot.page
+  h_3705811fa4502c 48,79,86-93,95-104,115-128,139-158,169-171,175-201
+unraid-certbot.plg
+  h_3705811fa4502c 23-38,55-56,77,91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a3f9ed574d73e9266e41abedee0d15baa21780fb",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
