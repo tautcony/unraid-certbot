@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# 本地调试用的假 docker：只实现 renew.sh / status.php / exec.php 用到的子命令。
-# `run ... certonly` 用 openssl 签自签证书写到 live/<域名>/，不联网、不起容器。
+# 本地调试用 docker stub：只实现 renew.sh / status.php / exec.php 用到的子命令。
+# `run ... certonly` 用 openssl 签自签证书写到 live/<域名>/，不联网、不启动容器。
 #
 set -uo pipefail
 
@@ -12,7 +12,7 @@ info() {
     echo "27.0.0-dev / overlay2 (${STUB_TAG})"
   else
     echo "Client: ${STUB_TAG}"
-    echo "Server: 27.0.0-dev (假实现，不会真的运行容器)"
+    echo "Server: 27.0.0-dev (dev stub)"
   fi
   exit 0
 }
@@ -112,7 +112,7 @@ docker_run() {
     esac
   done
 
-  echo "假 docker：模拟 certbot 运行（不联网、不启动容器）"
+  echo "[dev-stub] 模拟 certbot（不联网）"
   echo "  image      : ${image:-未指定}"
   echo "  config-dir : ${cert_dir:-未指定}"
   echo "  cert-name  : ${cert_name:-未指定}"

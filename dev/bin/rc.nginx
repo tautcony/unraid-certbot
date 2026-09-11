@@ -1,4 +1,4 @@
 #!/bin/bash
-# 假的 rc.nginx：本地只打印一行，不重启服务
-echo "[dev] rc.nginx $*（本地调试不重启真实服务）"
+# rc.nginx stub：本地只打印一行，不重启服务
+echo "[dev] rc.nginx $*（stub，不重启服务）"
 exit 0

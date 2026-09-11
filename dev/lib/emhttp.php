@@ -520,7 +520,7 @@ function cb_dev_chrome(array $head, string $body, array $ctx = []): string
 </div>
 
 <div class="devbar">
-  本地调试仿真页面，不是真的 Unraid webGUI。沙箱：<code>{$rootHtml}</code>
+  本地调试仿真页面，非 Unraid webGUI。沙箱：<code>{$rootHtml}</code>
   ｜ 源码：<code>{$sourceHtml}</code>
   ｜ 说明文字默认隐藏（Unraid 7 行为）：点表单标签或顶部 <b>帮助</b> 展开
 </div>

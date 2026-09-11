@@ -87,16 +87,16 @@ fi
 
 if [ ! -s "$CFG_DIR/cloudflare.ini" ]; then
   cat > "$CFG_DIR/cloudflare.ini" <<'EOF'
-# 本地调试用的假 Token，不会被任何真实服务使用
+# 本地调试用 Token，不会被真实服务使用
 dns_cloudflare_api_token = dev0000000000000000000000000000000000
 EOF
   chmod 600 "$CFG_DIR/cloudflare.ini"
-  say "    写入假 Cloudflare 凭据 $CFG_DIR/cloudflare.ini（权限 600）"
+  say "    写入 Cloudflare 凭据（stub）$CFG_DIR/cloudflare.ini（权限 600）"
 fi
 
-# 样例证书直接复用假 docker，产物布局与真实 certbot 一致，再合并成 bundle
+# 样例证书复用 dev/bin/docker 生成，产物布局与 certbot 一致
 if [ ! -s "$BUNDLE" ] || [ ! -s "$LETSENCRYPT_DIR/live/$PRIMARY/fullchain.pem" ]; then
-  say "==> 用假 docker 生成样例证书（$CERT_DAYS 天有效期）"
+  say "==> 生成样例证书（$CERT_DAYS 天有效期）"
   stub_log="$(mktemp)"
   CB_DEV_CERT_DAYS="$CERT_DAYS" "$ROOT/dev/bin/docker" run --rm \
     -v "${LETSENCRYPT_DIR}:/etc/letsencrypt" \
@@ -140,12 +140,11 @@ fi
 if [ ! -f "$CFG_DIR/certbot.log" ]; then
   {
     printf '[%s] ======== 开始续期 (触发: manual, staging=no) ========\n' "$(ts $((NOW - 86400 * 3 + 600)))"
-    printf '[%s] 📜 请求证书：%s\n' "$(ts $((NOW - 86400 * 3 + 600)))" "${DOMAINS//,/ }"
-    printf '[%s] 假 docker：模拟 certbot 运行（不联网、不启动容器）\n' "$(ts $((NOW - 86400 * 3 + 600)))"
+    printf '[%s] 请求证书：%s\n' "$(ts $((NOW - 86400 * 3 + 600)))" "${DOMAINS//,/ }"
     printf '[%s] ✅ 新证书已写入 %s\n' "$(ts $((NOW - 86400 * 3 + 601)))" "$BUNDLE"
-    printf '[%s] 🔁 重启 Unraid Web 管理服务 (nginx)...\n' "$(ts $((NOW - 86400 * 3 + 601)))"
+    printf '[%s] 重启 nginx...\n' "$(ts $((NOW - 86400 * 3 + 601)))"
     printf '[%s] ✅ nginx 已重启\n' "$(ts $((NOW - 86400 * 3 + 601)))"
-    printf '[%s] 🎉 完成。证书到期时间：%s\n' "$(ts $((NOW - 86400 * 3 + 601)))" "$(openssl x509 -noout -enddate -in "$BUNDLE" 2>/dev/null | cut -d= -f2)"
+    printf '[%s] ✅ 完成，证书到期时间：%s\n' "$(ts $((NOW - 86400 * 3 + 601)))" "$(openssl x509 -noout -enddate -in "$BUNDLE" 2>/dev/null | cut -d= -f2)"
   } > "$CFG_DIR/certbot.log"
   say "    写入样例日志 $CFG_DIR/certbot.log"
 fi
@@ -154,4 +153,4 @@ say ""
 say "✅ 沙箱就绪：$DEV_ROOT"
 say "   浏览器预览：./dev.sh        （默认 http://127.0.0.1:8080）"
 say "   命令行状态：./dev.sh status"
-say "   跑一次续期：./dev.sh renew"
+say "   执行续期：./dev.sh renew"

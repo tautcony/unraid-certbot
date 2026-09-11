@@ -186,8 +186,7 @@ function cb_dev_index(string $devRoot, string $docrootPath, string $pluginDir, s
         '配置目录'   => $loaded ? CB_CFG_DIR : '',
     ];
 
-    $body = '<p>这是 unraid-certbot 的本地调试首页。所有读写都发生在沙箱目录里，'
-          . '可以放心点按钮、改配置、跑续期。</p>';
+    $body = '<p>unraid-certbot 本地调试首页，所有读写均在沙箱内。</p>';
 
     $body .= '<h3>快捷入口</h3><ul>'
            . '<li><a href="/Settings/UnraidCertbot">设置页（设置 → Unraid Certbot，配置 / 状态 / 历史 / 日志）</a></li>'
@@ -196,16 +195,16 @@ function cb_dev_index(string $devRoot, string $docrootPath, string $pluginDir, s
            . ' / <a href="/Settings/UnraidCertbot?tab=log">运行日志</a>）</li>'
            . '<li><a href="/plugins/unraid-certbot/include/exec.php?action=docker" '
            . 'onclick="openBox(this.href, \'Docker 环境检查\', 820, 560); return false;">'
-           . '打开 Docker 环境检查（假 docker）</a></li>'
+           . 'Docker 环境检查</a></li>'
            . '<li><a href="/plugins/unraid-certbot/include/exec.php?action=renew" '
            . 'onclick="openBox(this.href, \'检查并续期\', 820, 560); return false;">'
-           . '跑一次续期（假 docker，不联网）</a></li>'
+           . '执行续期（不联网）</a></li>'
            . '</ul>';
 
     $body .= <<<'HTML'
 <h3>命令行</h3>
 <pre><code>./dev.sh status          # renew.sh --status
-./dev.sh renew           # 在沙箱里跑一次续期
+./dev.sh renew           # 在沙箱中执行一次续期
 ./dev.sh renew --force   # 强制续期
 ./dev.sh reset           # 重建沙箱
 ./lint.sh                # 静态检查</code></pre>
@@ -284,7 +283,7 @@ function cb_dev_update(string $docroot): void
     if ($save && $include !== '') {
         $incFile = $docroot . $include;
         if (strpos($include, '..') !== false || !is_file($incFile)) {
-            cb_dev_addlog('❌ 找不到校验脚本：' . $include);
+            cb_dev_addlog('找不到校验脚本：' . $include);
             $save = false;
         } else {
             include $incFile; // 校验脚本自己 addLog，并可能把 $save 置为 false
@@ -306,11 +305,11 @@ function cb_dev_update(string $docroot): void
             @mkdir(dirname($cfgPath), 0700, true);
         }
         if (@file_put_contents($cfgPath, implode("\n", $lines) . "\n", LOCK_EX) === false) {
-            cb_dev_addlog('❌ 写入配置失败：' . $cfgPath);
+            cb_dev_addlog('写入配置失败：' . $cfgPath);
             echo '<script>cbDevFinish(false, "写入配置失败")</script></body></html>';
             return;
         }
-        cb_dev_addlog('✅ 已写入 ' . $cfgPath);
+        cb_dev_addlog('已写入 ' . $cfgPath);
 
         $cronFile = CB_CFG_DIR . '/renew.cron';
         if (is_file($cronFile)) {
@@ -320,7 +319,7 @@ function cb_dev_update(string $docroot): void
         }
         echo '<script>cbDevFinish(true, "设置已保存")</script>';
     } else {
-        echo '<script>cbDevFinish(false, "设置未保存，请看上面的原因")</script>';
+        echo '<script>cbDevFinish(false, "设置未保存")</script>';
     }
 
     echo '</body></html>';
