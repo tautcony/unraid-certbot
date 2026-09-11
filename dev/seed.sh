@@ -1,28 +1,12 @@
 #!/bin/bash
 #
-# unraid-certbot 本地调试沙箱初始化。
+# 生成本地调试沙箱 dev/run/（目录结构与 Unraid 对应，见 dev/README.md）。
 #
-# 在 dev/run/ 下搭出一份「像 Unraid 那样」的目录树：
+#   ./dev/seed.sh           缺什么补什么，已存在的文件不动
+#   ./dev/seed.sh --reset   先删掉整个沙箱再重建
+#   ./dev/seed.sh --quiet   不打印进度
 #
-#   dev/run/usr/local/emhttp/                        $docroot（.page 就在这里被渲染）
-#     plugins/unraid-certbot -> source/...          软链，改源码立即生效
-#     plugins/dynamix/include/Wrappers.php -> dev/… 仿真的 Unraid 函数
-#     logging.htm -> dev/emhttp/logging.htm         仿真的日志框
-#   dev/run/boot/config/plugins/unraid-certbot/     配置、凭据、历史、日志
-#   dev/run/boot/config/ssl/certs/<主机名>_unraid_bundle.pem
-#   dev/run/boot/config/letsencrypt/live/<主域名>/  certbot 的证书目录
-#   dev/run/var/local/emhttp/var.ini                Unraid 服务器名
-#   dev/run/bin/docker -> dev/bin/docker            假 docker
-#   dev/run/etc/rc.d/rc.nginx -> dev/bin/rc.nginx   假 nginx 重启
-#
-# 用法：
-#   ./dev/seed.sh              # 缺什么补什么，已存在的文件不动
-#   ./dev/seed.sh --reset      # 先删掉整个沙箱再重建
-#
-# 可用环境变量覆盖样例数据：
-#   CB_DEV_HOST（默认 tower）CB_DEV_EMAIL（默认 admin@example.com）
-#   CB_DEV_DOMAINS（默认 example.com,www.example.com）
-#   CB_DEV_CERT_DAYS（默认 90）
+# 样例数据可用 CB_DEV_HOST / CB_DEV_EMAIL / CB_DEV_DOMAINS / CB_DEV_CERT_DAYS 覆盖。
 #
 set -uo pipefail
 
@@ -52,7 +36,6 @@ for arg in "$@"; do
   esac
 done
 
-# 进度信息：--quiet 时全部吞掉，警告和错误仍然走 stderr
 say() { [ "$QUIET" = "yes" ] || printf '%s\n' "$*"; }
 
 [ -d "$PLUGIN_SRC" ] || { echo "错误：找不到插件源码目录 $PLUGIN_SRC" >&2; exit 1; }
@@ -64,10 +47,6 @@ fi
 
 say "==> 初始化沙箱 $DEV_ROOT"
 
-# ---------------------------------------------------------------------------
-# 目录与软链
-# ---------------------------------------------------------------------------
-
 mkdir -p \
   "$DOCROOT/plugins/dynamix/include" \
   "$CFG_DIR" \
@@ -78,7 +57,7 @@ mkdir -p \
   "$DEV_ROOT/bin" \
   "$DEV_ROOT/etc/rc.d"
 
-# -n 保证已存在的目录/文件软链被替换而不是被当成目录下钻
+# -n：已存在的软链直接替换，不要当成目录下钻
 ln -sfn "$PLUGIN_SRC"                                   "$DOCROOT/plugins/unraid-certbot"
 ln -sfn "$ROOT/dev/emhttp/logging.htm"                  "$DOCROOT/logging.htm"
 ln -sfn "$ROOT/dev/emhttp/plugins/dynamix/include/Wrappers.php" \
@@ -88,15 +67,7 @@ ln -sfn "$ROOT/dev/bin/rc.nginx"                        "$DEV_ROOT/etc/rc.d/rc.n
 
 chmod 0755 "$ROOT/dev/bin/docker" "$ROOT/dev/bin/rc.nginx" 2>/dev/null
 
-# ---------------------------------------------------------------------------
-# Unraid 服务器名（决定 bundle 文件名）
-# ---------------------------------------------------------------------------
-
 printf 'NAME="%s"\n' "$HOST" > "$DEV_ROOT/var/local/emhttp/var.ini"
-
-# ---------------------------------------------------------------------------
-# 插件配置（已存在则不覆盖，方便保留手工改动）
-# ---------------------------------------------------------------------------
 
 if [ ! -f "$CFG_DIR/unraid-certbot.cfg" ]; then
   cat > "$CFG_DIR/unraid-certbot.cfg" <<EOF
@@ -123,13 +94,7 @@ EOF
   say "    写入假 Cloudflare 凭据 $CFG_DIR/cloudflare.ini（权限 600）"
 fi
 
-# ---------------------------------------------------------------------------
-# 样例证书
-#
-# 直接复用 dev/bin/docker 这个假 certbot，产物布局与真实 certbot 一致；
-# 再把 fullchain + privkey 合并成 Unraid 认的 bundle。
-# ---------------------------------------------------------------------------
-
+# 样例证书直接复用假 docker，产物布局与真实 certbot 一致，再合并成 bundle
 if [ ! -s "$BUNDLE" ] || [ ! -s "$LETSENCRYPT_DIR/live/$PRIMARY/fullchain.pem" ]; then
   say "==> 用假 docker 生成样例证书（$CERT_DAYS 天有效期）"
   stub_log="$(mktemp)"
@@ -159,10 +124,6 @@ if [ ! -s "$BUNDLE" ] || [ ! -s "$LETSENCRYPT_DIR/live/$PRIMARY/fullchain.pem" ]
     echo "警告：样例证书生成失败，状态页会显示「尚未签发」" >&2
   fi
 fi
-
-# ---------------------------------------------------------------------------
-# 样例历史与日志（仅首次生成，之后由 renew.sh 自己追加）
-# ---------------------------------------------------------------------------
 
 ts() { date -r "$1" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -d "@$1" '+%Y-%m-%d %H:%M:%S'; }
 NOW="$(date +%s)"

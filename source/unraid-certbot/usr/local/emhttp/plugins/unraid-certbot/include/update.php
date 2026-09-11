@@ -18,7 +18,7 @@ require_once "$docroot/plugins/dynamix/include/Wrappers.php";
 define('CB_NO_CLI_OUTPUT', true);
 require_once "$docroot/plugins/unraid-certbot/include/status.php";
 
-// 路径常量来自 status.php（CB_PLUGIN_DIR / CB_CFG_DIR），本地调试时同样指向沙箱
+// 路径常量来自 status.php
 $cbPluginDir = CB_PLUGIN_DIR;
 $cbCfgDir    = CB_CFG_DIR;
 $cbCredFile  = CB_CRED_FILE;
@@ -32,11 +32,8 @@ function cb_say(string $msg, string $prefix = ''): void
 }
 
 /**
- * 校验错误清单。$add 非空时追加一条，返回当前全部错误。
- *
- * 这里用函数内的 static 而不是 `global $cbErrors`：Unraid 是在全局作用域 include
- * 本文件的，但本地调试（dev/server.php 仿真 update.php）是在函数里 include，
- * 那种情况下 global 取不到外层的变量，错误会被静默丢掉。static 两种方式都成立。
+ * 校验错误清单。用函数内 static 而非 `global $cbErrors`：
+ * 本地调试是在函数里 include 本文件的，那时 global 取不到外层变量。
  */
 function cb_errors(?string $add = null): array
 {
@@ -129,7 +126,7 @@ if ($certDir[0] !== '/') {
 } elseif (strpos($certDir, ' ') !== false) {
     cb_error('证书目录不能包含空格');
 } else {
-    // .cfg 里存 Unraid 上的路径；落到磁盘时再映射到沙箱（本地调试用）
+    // .cfg 里存 Unraid 上的路径，落盘时再映射到沙箱
     $_POST['CERT_DIR'] = $certDir;
     $realCertDir = cb_syspath($certDir);
     if (!is_dir($realCertDir) && !@mkdir($realCertDir, 0700, true)) {

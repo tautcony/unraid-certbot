@@ -1,10 +1,4 @@
-<!--
-  unraid-certbot 本地调试用的 logging.htm 仿真。
-
-  真机上这个文件由 Unraid 提供（/usr/local/emhttp/logging.htm），include/exec.php
-  会把它 readfile() 进输出页面，然后不断输出 <script>addLog("...")</script> 滚动日志。
-  这里按 Unraid 的约定实现一份等价版本：等宽小字号、深色底、底部一个关闭按钮。
--->
+<!-- 仿真 Unraid 的 logging.htm：exec.php 会把它 readfile() 进输出页面，配 addLog 滚动日志 -->
 <style>
   html, body { margin: 0; padding: 0; background: #1d1b1b; }
   body {

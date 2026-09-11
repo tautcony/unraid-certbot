@@ -1,19 +1,12 @@
 <?php
 /**
- * unraid-certbot 本地预览服务器（php -S 的路由脚本）。
+ * 本地预览服务器（php -S 的路由脚本）。
  *
- *   ./dev.sh                      # 初始化沙箱并启动，默认 http://127.0.0.1:8080
+ *   ./dev.sh                                              # 初始化沙箱并启动
  *   php -S 127.0.0.1:8080 -t dev/run/usr/local/emhttp dev/server.php
  *
- * 路由：
- *   /                        调试首页（沙箱状态 + 快捷入口）
- *   /Settings/UnraidCertbot  渲染 unraid-certbot.page
- *   /Utilities/CertStatus    渲染 CertStatus.page
- *   /update.php              仿真 Unraid 的设置保存流程
- *   /plugins/...             沙箱里的真实文件（exec.php、logging.htm 等）交给内置服务器
- *
- * 服务进程自己会补上 CB_DEV_ROOT / CB_DOCKER / PATH，所以插件代码在它下面
- * 看到的路径全部落在 dev/run/ 沙箱里，不会碰宿主机。
+ * 路由：/（调试首页）、/Settings/UnraidCertbot、/Utilities/CertStatus、
+ * /update.php（仿真保存流程）；沙箱里真实存在的文件交给内置服务器。
  */
 
 $ROOT = dirname(__DIR__);
@@ -24,14 +17,12 @@ if ($DEV_ROOT === '') {
 }
 $DOCROOT = "$DEV_ROOT/usr/local/emhttp";
 
-// 让插件里的 getenv() / exec() 也走沙箱
+// 插件里的 getenv() / exec() 也走沙箱
 putenv("CB_DEV_ROOT=$DEV_ROOT");
 putenv('CB_DOCKER=' . (getenv('CB_DOCKER') ?: "$DEV_ROOT/bin/docker"));
 putenv('PATH=' . "$DEV_ROOT/bin:" . (string)getenv('PATH'));
 
-// PHP 的 date.timezone 可能是 UTC，而 shell 的 date 用系统时区。
-// 预览里两者必须一致，否则「上次续期 3 分钟前」会被算成「未来」。
-// 优先用 CB_DEV_TZ，其次从 /etc/localtime 读出系统时区，最后退回 +HH:MM 偏移。
+// PHP 时区可能是 UTC 而 shell 用系统时区，差 8 小时会让「上次续期」算成「未来」
 if (($devTz = trim((string)getenv('CB_DEV_TZ'))) === '') {
     $link = (string)@readlink('/etc/localtime');
     if (preg_match('#/zoneinfo/(.+)$#', $link, $m)) {
@@ -55,24 +46,18 @@ require_once __DIR__ . '/lib/emhttp.php';
 $PLUGIN_DIR = "$DOCROOT/plugins/unraid-certbot";
 $SEED_HINT  = '<p>沙箱还不完整，请先在仓库根目录执行 <code>./dev.sh</code>（或 <code>./dev/seed.sh</code>）初始化。</p>';
 
-// ---------------------------------------------------------------------------
-// 请求分发
-// ---------------------------------------------------------------------------
-
 $uri = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
 $uri = '/' . ltrim(rawurldecode($uri), '/');
 if ($uri !== '/' && substr($uri, -1) === '/') {
     $uri = rtrim($uri, '/');
 }
 
-// 目录穿越直接拒绝；本地服务也不该有例外
 if (strpos($uri, '..') !== false) {
     http_response_code(400);
     echo '非法路径';
     return true;
 }
 
-// 沙箱里真实存在的文件（exec.php / logging.htm 等）交给 PHP 内置服务器处理
 if ($uri !== '/' && is_file("$DOCROOT$uri")) {
     return false;
 }
@@ -102,11 +87,7 @@ echo '<p>本地预览里没有这个地址：<code>' . htmlspecialchars($uri, EN
 echo '<p><a href="/">回到调试首页</a></p></body></html>';
 return true;
 
-// ---------------------------------------------------------------------------
-// 路由实现
-// ---------------------------------------------------------------------------
-
-/** 顶栏要显示的信息：服务器名、版本、运行时长 */
+/** 顶栏展示用的服务器名、版本、运行时间 */
 function cb_dev_header_ctx(string $devRoot): array
 {
     $host = 'tower';
@@ -117,7 +98,7 @@ function cb_dev_header_ctx(string $devRoot): array
         $host = (string)gethostname();
     }
 
-    // 服务进程每次请求都是新进程，用文件记住首次启动时间，好让 Uptime 真实变化
+    // 每个请求都是新进程，用文件记住首次启动时间才能让 Uptime 走起来
     $startFile = "$devRoot/.dev-start";
     $start     = is_file($startFile) ? (int)file_get_contents($startFile) : 0;
     if ($start <= 0) {
@@ -128,7 +109,6 @@ function cb_dev_header_ctx(string $devRoot): array
     $uptime = intdiv($secs, 86400) . ' 天 '
             . sprintf('%02d:%02d', intdiv($secs % 86400, 3600), intdiv($secs % 3600, 60));
 
-    // 顶栏显示的 Unraid 版本号，只为观感一致，可用 CB_DEV_UNRAID_VERSION 改
     $version = trim((string)(getenv('CB_DEV_UNRAID_VERSION') ?: '')) ?: '7.3.2';
 
     return ['host' => $host, 'version' => $version, 'uptime' => $uptime];
@@ -152,7 +132,7 @@ function cb_dev_render(string $pluginDir, string $page, string $devRoot, string 
     ]);
 }
 
-/** 调试首页：汇总沙箱状态和快捷入口 */
+/** 调试首页 */
 function cb_dev_index(string $devRoot, string $docrootPath, string $pluginDir, string $seedHint): void
 {
     $statusFile = "$pluginDir/include/status.php";
@@ -227,16 +207,13 @@ HTML;
 }
 
 /**
- * 仿真 Unraid 的设置保存流程（/usr/local/emhttp/update.php 的最小实现）：
- *   1. 先跑表单里 #include 指向的校验脚本（插件的 include/update.php）
- *   2. 脚本把 $save 置为 false 就拒绝写入
- *   3. 否则把 $_POST 里除 # 开头的字段写成 .cfg
+ * 仿真 Unraid 的 update.php：先跑 #include 指向的校验脚本，脚本把 $save 置为 false
+ * 就拒绝写入，否则把 $_POST 里非 # 开头的字段写成 .cfg。
  */
 function cb_dev_update(string $docroot): void
 {
     header('Content-Type: text/html; charset=utf-8');
 
-    // 先加载插件状态助手：路径常量（CB_CFG_DIR 等）由它按沙箱规则算出来
     $statusFile = "$docroot/plugins/unraid-certbot/include/status.php";
     if (is_file($statusFile)) {
         define('CB_NO_CLI_OUTPUT', true);
@@ -255,10 +232,10 @@ function cb_dev_update(string $docroot): void
     }
     echo '<script>function cbDevFinish(ok,msg){if(window.parent&&parent.cbUpdateDone)parent.cbUpdateDone(ok,msg);}</script>';
 
-    $file    = (string)($_POST['#file'] ?? '');
-    $include = (string)($_POST['#include'] ?? '');
+    $file       = (string)($_POST['#file'] ?? '');
+    $include    = (string)($_POST['#include'] ?? '');
     $pluginsDir = dirname(CB_CFG_DIR);
-    $save    = true;
+    $save       = true;
 
     cb_dev_addlog('=== 保存设置 ===');
 
@@ -269,14 +246,12 @@ function cb_dev_update(string $docroot): void
     }
 
     if ($save && $include !== '') {
-        // 只允许 docroot 下的路径，挡掉 ../ 之类的构造
         $incFile = $docroot . $include;
         if (strpos($include, '..') !== false || !is_file($incFile)) {
             cb_dev_addlog('❌ 找不到校验脚本：' . $include);
             $save = false;
         } else {
-            // 插件的 update.php 会把校验结果通过 addLog 打出来，并可能把 $save 置为 false
-            include $incFile;
+            include $incFile; // 校验脚本自己 addLog，并可能把 $save 置为 false
         }
     }
 
@@ -284,12 +259,9 @@ function cb_dev_update(string $docroot): void
         $cfgPath = $pluginsDir . '/' . $rel;
         $lines   = [];
         foreach ($_POST as $k => $v) {
-            if ($k === '' || $k[0] === '#' || is_array($v)) {
-                continue;
-            }
-            // Token 由 update.php 单独写进 cloudflare.ini；正常情况下它已经把这两个
-            // 字段从 $_POST 摘掉了，这里再兜一层，避免异常请求把 Token 写进 .cfg
-            if ($k === 'CF_API_TOKEN_NEW' || $k === 'CF_API_TOKEN_CLEAR') {
+            // Token 由 update.php 单独写进 cloudflare.ini，这里再兜一层
+            if ($k === '' || $k[0] === '#' || is_array($v)
+                || $k === 'CF_API_TOKEN_NEW' || $k === 'CF_API_TOKEN_CLEAR') {
                 continue;
             }
             $lines[] = $k . '="' . str_replace(['\\', '"'], ['\\\\', '\\"'], (string)$v) . '"';
@@ -318,7 +290,7 @@ function cb_dev_update(string $docroot): void
     echo '</body></html>';
 }
 
-/** 往设置保存页面的日志框里追加一行 */
+/** 往保存页面的日志框追加一行 */
 function cb_dev_addlog(string $msg): void
 {
     $msg = str_replace(["\n", '"'], ['<br>', '\\"'], $msg);

@@ -11,13 +11,7 @@
 const CB_PLUGIN      = 'unraid-certbot';
 const CB_HISTORY_MAX = 200;
 
-/**
- * 本地调试：CB_DEV_ROOT 是一个沙箱根目录，设置后所有绝对路径都会挂到它下面，
- * 从而不会读写宿主机的 /boot、/usr/local/emhttp 等真实位置。
- * 生产环境（Unraid）不设置该变量，下面的路径与 Unraid 上完全一致。
- *
- * 与 scripts/renew.sh 的 syspath() 保持同一套规则，两边指向同一个沙箱。
- */
+/** 本地调试：CB_DEV_ROOT 是沙箱根，规则与 renew.sh 的 syspath() 一致 */
 function cb_dev_root(): string
 {
     static $root = null;
@@ -27,7 +21,7 @@ function cb_dev_root(): string
     return $root;
 }
 
-/** 把绝对路径映射到沙箱根下；已经在沙箱内的路径原样返回，避免重复加前缀 */
+/** 已在沙箱内的路径原样返回，避免重复加前缀 */
 function cb_syspath(string $path): string
 {
     $root = cb_dev_root();
@@ -220,10 +214,7 @@ function cb_log_tail(int $lines = 400): string
     return implode("\n", array_slice($all, -$lines));
 }
 
-/**
- * docker 可执行文件。默认就是 PATH 里的 docker；
- * 本地调试时 dev.sh 会导出 CB_DOCKER 指向 dev/bin/docker 这个假实现。
- */
+/** docker 可执行文件；本地调试时 dev.sh 用 CB_DOCKER 指向假实现 */
 function cb_docker_cmd(): string
 {
     static $cmd = null;
@@ -267,7 +258,7 @@ function cb_status(array $cfg): array
     $primary = $domains[0] ?? '';
     $host    = trim((string)($cfg['UNRAID_HOSTNAME'] ?? ''));
     $certDir = rtrim(trim((string)($cfg['CERT_DIR'] ?? '')), '/') ?: '/boot/config/letsencrypt';
-    // 配置里存的是 Unraid 上的绝对路径；本地调试时同样要挂到沙箱下
+    // 配置里存的是 Unraid 上的路径，本地调试也要挂到沙箱
     $certDir = cb_syspath($certDir);
 
     $bundlePath = $host !== '' ? CB_SSL_DIR . "/{$host}_unraid_bundle.pem" : null;

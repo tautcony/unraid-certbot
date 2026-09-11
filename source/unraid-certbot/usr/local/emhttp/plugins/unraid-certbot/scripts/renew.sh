@@ -5,12 +5,10 @@
 # 用 certbot/dns-cloudflare 容器通过 Cloudflare DNS-01 验证签发/续期证书，
 # 然后把 fullchain + privkey 合并成 Unraid webGUI 认的 bundle 文件。
 #
-# 用法与退出码见 --help（或文件末尾的 usage 函数）。
+# 用法与退出码见 --help。
 #
-# 本地调试：
-#   设置 CB_DEV_ROOT 后，所有绝对路径都会映射到该沙箱目录下，不会碰宿主机真实文件；
-#   CB_DOCKER 可以把 docker 换成 dev/bin/docker 这个不联网的假实现。
-#   两者都由 dev.sh 自动导出，细节见 dev/README.md。
+# 本地调试：CB_DEV_ROOT 把绝对路径映射到沙箱，CB_DOCKER 换成假 docker，
+# 两者由 dev.sh 导出，详见 dev/README.md。
 #
 set -uo pipefail
 
@@ -18,15 +16,10 @@ PLUGIN="unraid-certbot"
 IMAGE="certbot/dns-cloudflare"
 STAGING_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
 
-# ---------------------------------------------------------------------------
-# 路径解析
-#
-# 生产环境（Unraid）不设置 CB_DEV_ROOT，这里算出来的就是系统真实路径，行为与改造前一致。
-# ---------------------------------------------------------------------------
-
+# 不设 CB_DEV_ROOT 时就是 Unraid 上的真实路径
 DEV_ROOT="${CB_DEV_ROOT:-}"
 
-# 把绝对路径映射到沙箱根下；已经在沙箱内的路径原样返回，避免重复加前缀
+# 已在沙箱内的路径原样返回，避免重复加前缀
 syspath() {
   if [ -z "${1:-}" ]; then
     printf ''
@@ -200,7 +193,7 @@ load_cfg
 : "${RESTART_NGINX:=yes}"
 : "${STAGING:=no}"
 
-# 证书目录来自配置文件，也需要套用沙箱前缀（本地调试时它同样指向 /boot 下）
+# 配置里的证书目录同样要套沙箱前缀
 CERT_DIR="$(syspath "$CERT_DIR")"
 
 [ "$STAGING_OVERRIDE" = "yes" ] && STAGING="yes"

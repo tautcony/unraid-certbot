@@ -1,14 +1,24 @@
 name: release
 
-# 推送形如 2026.09.10 的 tag 即触发发布。
-# 版本号只从 tag 取，不读仓库里的 VERSION —— 避免二者不一致。
+# 推 tag 发版；失败时用 workflow_dispatch 重跑，不要删 tag 重推 —— 删除和重推
+# 都会再触发 push 事件，两个 run 抢同一个 release。版本号只从 tag 取。
 on:
   push:
     tags:
       - '[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '要发布的版本号，必须是已存在的 tag，形如 2026.09.10'
+        required: true
 
 permissions:
   contents: write
+
+# 同一版本串行执行
+concurrency:
+  group: release-${{ github.event.inputs.version || github.ref_name }}
+  cancel-in-progress: false
 
 env:
   DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -16,10 +26,24 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # 删除 tag 也触发 push；此时发不了版，且 gh release create 会把 tag 建回来
+    if: ${{ github.event.deleted != true }}
+    env:
+      VERSION: ${{ github.event.inputs.version || github.ref_name }}
     steps:
+      - name: 解析版本号
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$'; then
+            echo "::error::版本号应形如 2026.09.10，当前为 ${VERSION}"
+            exit 1
+          fi
+          echo "发版版本：${VERSION}"
+
       - uses: actions/checkout@v4
         with:
-          # 最后要把 .plg 提交回默认分支，需要完整历史
+          # 手动触发时默认拿到的是分支，要显式切到 tag
+          ref: ${{ github.event.inputs.version || github.ref_name }}
           fetch-depth: 0
 
       - name: 安装依赖
@@ -29,47 +53,86 @@ jobs:
         run: ./lint.sh
 
       - name: 打包
-        run: ./build.sh "${GITHUB_REF_NAME}"
+        run: |
+          set -euo pipefail
+          git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null \
+            || { echo "::error::tag ${VERSION} 不存在，请先推送 tag"; exit 1; }
+          ./build.sh "${VERSION}"
 
       - name: 校验产物
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME}"
-          pkg="dist/unraid-certbot-${version}-noarch-1.txz"
+          pkg="dist/unraid-certbot-${VERSION}-noarch-1.txz"
           [ -f "$pkg" ] || { echo "::error::没有产出 $pkg"; exit 1; }
 
           md5="$(md5sum "$pkg" | cut -d' ' -f1)"
           sha="$(sha256sum "$pkg" | cut -d' ' -f1)"
 
-          # 校验和写错会导致 Unraid 装不上并把 .plg 丢进 plugins-error/，
-          # 所以发布前对一遍，别等用户踩
+          # 校验和写错会让 Unraid 把 .plg 丢进 plugins-error/
           grep -q "<MD5>${md5}</MD5>" unraid-certbot.plg \
             || { echo "::error::.plg 里的 MD5 与实际包不符"; exit 1; }
           grep -q "<SHA256>${sha}</SHA256>" unraid-certbot.plg \
             || { echo "::error::.plg 里的 SHA256 与实际包不符"; exit 1; }
 
-          # .plg 里的 URL 和属性用的是 &version; 这类 DTD 实体，文件里根本没有
-          # 字面版本号（Unraid 安装时才展开），所以必须先用 xmllint --noent 展开再比。
+          # URL 与属性用的是 &version; 这类实体，必须展开后再比
           declared="$(xmllint --noent --xpath 'string(/PLUGIN/@version)' unraid-certbot.plg)"
-          [ "$declared" = "$version" ] \
-            || { echo "::error::.plg 声明的版本是 ${declared}，与 tag ${version} 不一致"; exit 1; }
+          [ "$declared" = "$VERSION" ] \
+            || { echo "::error::.plg 声明的版本是 ${declared}，与 tag ${VERSION} 不一致"; exit 1; }
 
           expanded="$(xmllint --noent unraid-certbot.plg)"
-          grep -q "releases/download/${version}/" <<<"$expanded" \
+          grep -q "releases/download/${VERSION}/" <<<"$expanded" \
             || { echo "::error::.plg 里的下载地址没有指向本次 tag"; exit 1; }
 
           echo "校验通过：版本 ${declared}，MD5 ${md5}"
+
+      # 先提交 .plg 再上传资产：反过来的话，提交失败会留下「新资产 + 旧 .plg」
+      - name: 把更新后的 .plg 提交回默认分支
+        run: |
+          set -euo pipefail
+
+          # 处于 detached HEAD；先把 build.sh 改好的 .plg 挪出工作区
+          cp unraid-certbot.plg /tmp/unraid-certbot.plg
+          cp VERSION            /tmp/VERSION
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # 默认分支上可能有并发提交，推送被拒就重来一轮
+          for attempt in 1 2 3; do
+            git fetch origin "$DEFAULT_BRANCH"
+            # -f：丢掉工作区里的 .plg（真件已备份）；不加会因本地修改被拒
+            git checkout -f -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
+
+            cp /tmp/unraid-certbot.plg unraid-certbot.plg
+            cp /tmp/VERSION             VERSION
+
+            git add unraid-certbot.plg VERSION
+            if git diff --cached --quiet; then
+              echo ".plg 无变化，跳过提交"
+              exit 0
+            fi
+
+            git commit -m "release: ${VERSION}"
+            if git push origin "$DEFAULT_BRANCH"; then
+              echo "已提交 .plg 到 ${DEFAULT_BRANCH}"
+              exit 0
+            fi
+            echo "推送被拒，重试 ${attempt}/3"
+            sleep 3
+          done
+
+          echo "::error::.plg 提交失败，本次没有上传资产，请重跑"
+          exit 1
 
       - name: 创建 Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME}"
-          pkg="dist/unraid-certbot-${version}-noarch-1.txz"
+          pkg="dist/unraid-certbot-${VERSION}-noarch-1.txz"
 
           # 从 .plg 的 CHANGES 里抽出本次版本的更新说明
-          awk -v v="$version" '
+          awk -v v="$VERSION" '
             index($0, "###" v) == 1 { capture = 1; next }
             /^###/          { capture = 0 }
             /^<\/CHANGES>/  { capture = 0 }
@@ -77,7 +140,7 @@ jobs:
           ' unraid-certbot.plg > /tmp/notes.md
 
           if [ ! -s /tmp/notes.md ]; then
-            echo "unraid-certbot ${version}" > /tmp/notes.md
+            echo "unraid-certbot ${VERSION}" > /tmp/notes.md
           fi
 
           cat >> /tmp/notes.md <<EOF
@@ -89,49 +152,20 @@ jobs:
           \`\`\`
           EOF
 
-          # 重跑同一个 tag 时 release 可能已存在，退化为上传覆盖
-          if gh release view "$version" >/dev/null 2>&1; then
-            gh release upload "$version" "$pkg" --clobber
+          # --verify-tag 防止 gh 自己把 tag 建出来再触发一轮；已存在则改为覆盖上传
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" "$pkg" --clobber
           else
-            gh release create "$version" \
-              --title "unraid-certbot ${version}" \
+            gh release create "$VERSION" \
+              --verify-tag \
+              --title "unraid-certbot ${VERSION}" \
               --notes-file /tmp/notes.md \
               "$pkg"
           fi
 
-      - name: 把更新后的 .plg 提交回默认分支
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME}"
-
-          # 此刻处于 detached HEAD（checkout 的是 tag）。
-          # build.sh 已把版本号与校验和写进工作区的 .plg，先挪到工作区外，
-          # 再切到默认分支的最新提交放回去 —— 这样即使 tag 之后默认分支上
-          # 又有了新提交，也不会撞上 non-fast-forward。
-          cp unraid-certbot.plg /tmp/unraid-certbot.plg
-          cp VERSION             /tmp/VERSION
-
-          git fetch origin "$DEFAULT_BRANCH"
-          git checkout -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
-
-          cp /tmp/unraid-certbot.plg unraid-certbot.plg
-          cp /tmp/VERSION             VERSION
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add unraid-certbot.plg VERSION
-          if git diff --cached --quiet; then
-            echo ".plg 无变化，跳过提交"
-            exit 0
-          fi
-
-          git commit -m "release: ${version}"
-          git push origin "$DEFAULT_BRANCH"
-
       - name: 发布结果
         run: |
-          echo "### unraid-certbot ${GITHUB_REF_NAME} 已发布" >> "$GITHUB_STEP_SUMMARY"
+          echo "### unraid-certbot ${VERSION} 已发布" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "安装地址：" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"

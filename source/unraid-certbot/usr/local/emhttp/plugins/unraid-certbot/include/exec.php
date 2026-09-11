@@ -20,7 +20,7 @@ $plugin    = 'unraid-certbot';
 // 用 $docroot 推导而不是写死 /usr/local/emhttp，便于在测试环境里跑，也兼容非标准安装
 $pluginDir = "{$docroot}/plugins/{$plugin}";
 $script    = "{$pluginDir}/scripts/renew.sh";
-// 日志路径跟随 status.php 的沙箱规则（本地调试时指向 dev/run）
+// 日志路径跟随 status.php 的沙箱规则
 $logFile   = CB_LOG;
 
 header('Content-Type: text/html; charset=utf-8');

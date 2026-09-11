@@ -1,23 +1,17 @@
 #!/bin/bash
 #
-# unraid-certbot 本地调试入口。
+# 本地调试入口。
 #
-#   ./dev.sh                 初始化沙箱并启动预览服务器（http://127.0.0.1:8080）
-#   ./dev.sh serve           同上
-#   ./dev.sh status          在沙箱里执行 renew.sh --status
-#   ./dev.sh renew [参数]    在沙箱里执行一次续期（假 docker，不联网）
+#   ./dev.sh                 初始化沙箱并启动预览（http://127.0.0.1:8080）
+#   ./dev.sh status          执行 renew.sh --status
+#   ./dev.sh renew [参数]    执行一次续期（假 docker，不联网）
 #   ./dev.sh reset           删掉沙箱重建
-#   ./dev.sh seed            只初始化沙箱，不启动服务
+#   ./dev.sh seed            只初始化沙箱
 #   ./dev.sh doctor          检查本机依赖
 #
-# 常用参数：
-#   --port 9000              换预览端口（也可用 CB_DEV_PORT）
-#   --no-seed                启动前不跑 seed.sh
-#   --reset                  配合 serve/seed 先重建沙箱
-#
-# 环境变量（都由本脚本导出给插件使用）：
-#   CB_DEV_ROOT  dev/run，所有 /boot、/usr/local/emhttp 路径都挂到它下面
-#   CB_DOCKER    dev/bin/docker，不联网的假 certbot
+#   --port 9000   换端口（也可用 CB_DEV_PORT）
+#   --reset       先重建沙箱
+#   --no-seed     启动前不跑 seed.sh
 #
 set -uo pipefail
 
@@ -27,7 +21,6 @@ DOCROOT="$DEV_ROOT/usr/local/emhttp"
 PLUGIN_SRC="$ROOT/source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot"
 
 usage() {
-  # 打印文件开头的注释块（跳过 shebang 与紧随其后的空注释行）
   awk 'NR>2 && /^#/ { sub(/^# ?/, ""); print; next } NR>2 { exit }' "$0"
 }
 
@@ -89,12 +82,8 @@ if [ "$CMD" = "seed" ]; then
   exec "$ROOT/dev/seed.sh"
 fi
 
-# ---------------------------------------------------------------------------
-# 其余命令都要先有沙箱
-# ---------------------------------------------------------------------------
-
 if [ "$NO_SEED" != "yes" ]; then
-  # status / renew 是命令行用法，沙箱初始化过程保持安静，只留插件自己的输出
+  # 命令行用法下沙箱初始化保持安静
   if [ "$CMD" = "status" ] || [ "$CMD" = "renew" ]; then
     if [ "${#SEED_ARGS[@]}" -gt 0 ]; then
       "$ROOT/dev/seed.sh" --quiet "${SEED_ARGS[@]}" || exit 1
@@ -112,7 +101,7 @@ fi
 
 [ -x "$PLUGIN_SRC/scripts/renew.sh" ] || { echo "错误：找不到 $PLUGIN_SRC/scripts/renew.sh" >&2; exit 1; }
 
-# 插件代码靠这两个变量认路：路径去沙箱，docker 换成假实现
+# 路径去沙箱，docker 换成假实现
 export CB_DEV_ROOT="$DEV_ROOT"
 export CB_DOCKER="${CB_DOCKER:-$DEV_ROOT/bin/docker}"
 export PATH="$DEV_ROOT/bin:$PATH"

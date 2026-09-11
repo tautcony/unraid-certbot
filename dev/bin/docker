@@ -1,20 +1,13 @@
 #!/bin/bash
 #
-# unraid-certbot 本地调试用的假 docker。
-#
-# 只实现 renew.sh / status.php / exec.php 真正会用到的那几个子命令，
-# 不联网、不启动容器。`docker run ... certonly` 会用 openssl 现场签一张
-# 自签证书写到 live/<域名>/ 下，模拟 certbot 的产出，这样整套续期流程
-# 可以离线跑通（含合并 bundle、写历史、重启 nginx 的假实现）。
-#
-# 由 dev.sh 通过 CB_DOCKER 指过来，并放进沙箱 PATH 的最前面。
+# 本地调试用的假 docker：只实现 renew.sh / status.php / exec.php 用到的子命令。
+# `run ... certonly` 用 openssl 签自签证书写到 live/<域名>/，不联网、不起容器。
 #
 set -uo pipefail
 
 STUB_TAG="unraid-certbot dev stub"
 
 info() {
-  # 真机上这里会打印一堆信息；这里只需要让 renew.sh 判定“守护进程可用”
   if printf '%s\n' "$*" | grep -q -- '--format'; then
     echo "27.0.0-dev / overlay2 (${STUB_TAG})"
   else
@@ -40,7 +33,7 @@ image_inspect() {
   exit 0
 }
 
-# 用 openssl 签一张自签证书，产物布局与 certbot 的 live/<cert-name>/ 一致
+# 产物布局与 certbot 的 live/<cert-name>/ 一致
 make_certs() {
   local live="$1" name="$2" days="$3" ca_cn="$4"
   shift 4
@@ -96,7 +89,7 @@ docker_run() {
   local cert_dir="" cred_mount="" cert_name="" image="" staging="no" force="no"
   local domains=()
 
-  # 解析 docker run 的参数：只挑出续期流程真正关心的几个，其余忽略
+  # 只挑续期关心的参数，其余忽略
   while [ $# -gt 0 ]; do
     case "$1" in
       certonly) shift ;;
@@ -146,7 +139,7 @@ docker_run() {
   local live="${cert_dir}/live/${cert_name}"
   mkdir -p "${cert_dir}/accounts/dev" "${cert_dir}/renewal" "${live}" 2>/dev/null
 
-  # 与 certbot 一致：证书还早着到期、且没有 --force-renewal 时直接跳过
+  # 与 certbot 一致：没到期且没 --force-renewal 就跳过
   if [ "$force" != "yes" ] && [ -s "${live}/cert.pem" ] \
      && openssl x509 -checkend $((30 * 86400)) -noout -in "${live}/cert.pem" >/dev/null 2>&1; then
     echo "Certificate not yet due for renewal"
@@ -157,7 +150,7 @@ docker_run() {
   local ca_cn="${STUB_TAG} CA"
   [ "$staging" = "yes" ] && ca_cn="(STAGING) ${STUB_TAG} CA"
 
-  # CB_DEV_CERT_DAYS 可以造出「即将到期」的样例证书，方便看状态页的告警样式
+  # CB_DEV_CERT_DAYS 可造出快过期的样例证书
   if ! make_certs "$live" "$cert_name" "${CB_DEV_CERT_DAYS:-90}" "$ca_cn" "${domains[@]}"; then
     echo "错误：openssl 生成测试证书失败" >&2
     exit 1
