@@ -12,7 +12,7 @@
 function cb_history_panel(array $st, string $cb): void
 {
     if (empty($st['history'])) {
-        echo '<blockquote class="inline_help cb-help-open">暂无记录。切到「证书状态」点「立即检查并续期」执行一次。</blockquote>';
+        echo '<blockquote class="inline_help cb-help-open">暂无记录。</blockquote>';
         return;
     }
 ?>

@@ -45,7 +45,7 @@ if (!$st['configured']['email'])   $missing[] = '邮箱';
 if (!$st['configured']['host'])    $missing[] = 'Unraid 主机名';
 if (!$st['configured']['domains']) $missing[] = '域名';
 
-$log = $tab === 'log' ? cb_log_tail(400) : '';
+$log = cb_log_tail(400);
 ?>
 
 <div id="cb-tabs">
@@ -76,29 +76,32 @@ $log = $tab === 'log' ? cb_log_tail(400) : '';
   <code>/boot/config/plugins/<?=$cb?>/certbot.log</code>，显示最后 400 行，超过 1 MiB 时自动截断。
 </p>
 <?php if (trim($log) === ''): ?>
-<blockquote class="inline_help cb-help-open">日志还是空的。</blockquote>
+<blockquote class="inline_help cb-help-open">暂无日志。</blockquote>
 <?php else: ?>
 <div class="cb-log"><?=cb_e($log)?></div>
 <?php endif; ?>
 </div>
 
 <script>
-// 切换标签：显示对应面板，并把 tab 写进地址栏（刷新、收藏都能回到同一标签）。
-// 用 replaceState 而不是 location.hash，免得给 Unraid 的 history 添乱。
+var cbTabKeys = <?=json_encode(array_keys($tabs), JSON_UNESCAPED_UNICODE)?>;
+var cbTabNow  = <?=json_encode($tab, JSON_UNESCAPED_UNICODE)?>;
+var cbDirty   = false;   // 「设置」标签里有改动还没保存
+
+// 证书状态里的实时数据（最近一次运行、日志尾部）是服务端渲染的，
+// 前端只切 display 永远看不到新内容。所以切标签走整页导航：
+// 服务端按新的 tab 重新渲染，历史与日志就是当前最新的。
+// 加 _ 参数是为了绕开浏览器缓存，导航后立刻用 replaceState 去掉它。
 function cbTab(name) {
-  document.querySelectorAll('.cb-pane').forEach(function (el) { el.style.display = 'none'; });
-  document.querySelectorAll('#cb-tabs button').forEach(function (el) { el.classList.remove('active'); });
-  var pane = document.getElementById('cb-pane-' + name);
-  if (pane) pane.style.display = '';
-  var keys = Object.keys(<?=json_encode($tabs, JSON_UNESCAPED_UNICODE)?>);
-  var idx  = keys.indexOf(name);
-  var btns = document.querySelectorAll('#cb-tabs button');
-  if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
-  try {
-    var url = new URL(location.href);
-    url.searchParams.set('tab', name);
-    history.replaceState(null, '', url);
-  } catch (e) {}
+  if (name === cbTabNow) { return; }
+  if (cbTabNow === 'config' && cbDirty) {
+    if (!window.confirm(<?=json_encode(_('有未保存的改动，确定离开？'), JSON_UNESCAPED_UNICODE)?>)) {
+      return;
+    }
+  }
+  var url = new URL(location.href);
+  url.searchParams.set('tab', name);
+  url.searchParams.set('_', Date.now());
+  location.assign(url.toString());
 }
 
 // 真机外壳会在表单有改动时才启用「应用」；这里兜一份，
@@ -109,8 +112,20 @@ function cbEnableApply(form) {
     b.disabled = false;
   });
 }
-document.addEventListener('input',  function (e) { cbEnableApply(e.target.form); }, true);
-document.addEventListener('change', function (e) { cbEnableApply(e.target.form); }, true);
+function cbMarkDirty(form) {
+  if (form && form.querySelector('input[name="#apply"]')) { cbDirty = true; }
+}
+document.addEventListener('input',  function (e) { cbEnableApply(e.target.form); cbMarkDirty(e.target.form); }, true);
+document.addEventListener('change', function (e) { cbEnableApply(e.target.form); cbMarkDirty(e.target.form); }, true);
+
+// 地址栏只保留 tab=，不要留下缓存绕行用的 _ 参数
+try {
+  var clean = new URL(location.href);
+  if (clean.searchParams.has('_')) {
+    clean.searchParams.delete('_');
+    history.replaceState(null, '', clean.toString());
+  }
+} catch (e) {}
 
 // 「显示 / 隐藏」Token
 function cbToggle(id, btn) {
@@ -120,6 +135,26 @@ function cbToggle(id, btn) {
   el.type = show ? 'text' : 'password';
   btn.value = show ? '<?=_('隐藏')?>' : '<?=_('显示')?>';
 }
+
+// 重取当前标签：历史/日志/配置都是服务端渲染的，只有重新请求才拿到最新值
+function cbReload(saved) {
+  var url = new URL(location.href);
+  url.searchParams.set('tab', cbTabNow);
+  url.searchParams.set('_', Date.now());
+  if (saved) { url.searchParams.set('_saved', '1'); }
+  location.replace(url.toString());
+}
+
+// 保存并重取之后，地址里带着 _saved；把提示补上并在标签内显示
+(function () {
+  try {
+    var q = new URL(location.href).searchParams;
+    if (!q.has('_saved')) { return; }
+    cbSaveResult(true, <?=json_encode(_('设置已保存'), JSON_UNESCAPED_UNICODE)?>);
+    q.delete('_saved');
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : ''));
+  } catch (e) {}
+})();
 
 // 续期类动作在对话框里跑，输出走 addLog
 function cbRun(action) {
@@ -131,13 +166,38 @@ function cbRun(action) {
   openBox('/plugins/<?=$cb?>/include/exec.php?action=' + action, titles[action] || action, 820, 560);
 }
 
-// 保存结束后把结果显示在设置表单上方（进度输出仍由 Unraid 的 progressFrame 提供）。
+// 保存结束后：显示结果，并重新取一次页面。
+// 重取的原因和历史/日志一样 —— 这张页面的数据是服务端渲染的，
+// 保存改变了配置（自动续期、证书目录等），不重取就会一直显示旧值。
 // 名字带 cb 前缀是插件自己的，避免和 Unraid 或主题里的同名函数撞车。
 function cbSaveResult(ok, msg) {
   var panel = document.getElementById('cb-update-result');
-  if (!panel) return;
-  panel.style.display = '';
-  panel.className = 'inline_help cb-help-open';
-  panel.innerHTML = '<b>' + (msg || (ok ? '设置已保存' : '设置未保存')) + '</b>';
+  if (panel) {
+    panel.style.display = '';
+    panel.className = 'inline_help cb-help-open';
+    panel.innerHTML = '<b>' + (msg || (ok ? '<?=_('设置已保存')?>' : '<?=_('设置未保存')?>')) + '</b>';
+  }
+  if (!ok) { return; }
+  cbDirty = false;
+  cbReloadWhenSaved(true);
+}
+
+// 保存（表单 POST 到 progressFrame）完成后重取本页：
+// 配置改了、历史/日志也写了一条，只有重新请求才能看到最新值。
+// 等进度框加载完再重取 —— 用定时器猜时间会在提交还没落地时就把页面带走。
+function cbReloadWhenSaved(saved) {
+  var frame = document.getElementById('progressFrame');
+  if (!frame || frame.dataset.cbWatching === '1') { return; }
+  frame.dataset.cbWatching = '1';
+  var fire = function () {
+    var doc = null;
+    try { doc = frame.contentDocument; } catch (e) { return; }
+    if (!doc || !doc.body) { return; }
+    if (!/设置已保存|保存成功/.test(doc.body.innerHTML)) { return; }  // 保存失败就别刷
+    frame.dataset.cbWatching = '';
+    setTimeout(function () { cbReload(saved); }, 1200);   // 先让提示露个面
+  };
+  frame.addEventListener('load', fire);
+  fire();   // 万一提交已经完成了
 }
 </script>

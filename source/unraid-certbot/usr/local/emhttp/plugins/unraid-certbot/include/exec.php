@@ -103,15 +103,15 @@ if ($action === 'docker') {
 }
 
 if (!is_file($script)) {
-    write_log('❌ 找不到脚本 ' . $script . '，插件文件可能不完整，请重新安装插件');
+    write_log('❌ 插件文件不完整，请重新安装');
     write_log('=== 结束 ===');
     exit;
 }
 if (!is_executable($script)) {
-    write_log('⚠️ 脚本没有可执行权限，尝试修复...');
+    write_log('⚠️ 正在修复脚本权限...');
     @chmod($script, 0755);
     if (!is_executable($script)) {
-        write_log('❌ 无法修复可执行权限，请执行：chmod 755 ' . $script);
+        write_log('❌ 无法修复脚本权限');
         write_log('=== 结束 ===');
         exit;
     }
@@ -123,7 +123,7 @@ foreach ($args as $a) {
 }
 
 if (!is_writable(dirname($logFile)) && !is_dir(dirname($logFile))) {
-    write_log('⚠️ 配置目录 ' . dirname($logFile) . ' 不存在，正在创建');
+    write_log('⚠️ 配置目录不存在，正在创建');
     @mkdir(dirname($logFile), 0700, true);
 }
 
@@ -145,9 +145,9 @@ if ($rc === 0) {
 } else {
     write_log("=== 结束，退出码 {$rc} ===");
     $hints = [
-        1 => '配置有误，请回到设置页检查邮箱 / 主机名 / 域名 / Token。',
-        2 => 'certbot 执行失败，常见原因：Token 权限不足（需要 Zone→DNS→Edit）、域名不在该 Cloudflare 账号下、或 API 限流。',
-        3 => '已有一次续期正在进行，请稍后再试。',
+        1 => '配置有误，请检查设置页。',
+        2 => 'certbot 执行失败。常见原因：Token 权限不足（需 Zone → DNS → Edit）、域名不在该 Cloudflare 账号下。',
+        3 => '已有续期正在执行，请稍后再试。',
         4 => 'Docker 服务不可用，通常是阵列未启动。',
     ];
     if (isset($hints[$rc])) {

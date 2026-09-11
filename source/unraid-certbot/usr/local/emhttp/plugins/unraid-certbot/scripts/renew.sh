@@ -116,6 +116,65 @@ log() {
   [ "$QUIET" = "yes" ] || printf '%s\n' "$msg"
 }
 
+# stat 的可移植封装：Unraid 是 GNU coreutils，macOS 的 BSD stat 参数不同。
+# 本地沙箱（macOS）也要能跑，所以两种都兼容。
+cb_own() {  # 属主:组 权限
+  stat -c '%U:%G %a' "$1" 2>/dev/null || stat -f '%Su:%Sg %Lp' "$1" 2>/dev/null || printf '?'
+}
+cb_fstype() {
+  # /proc/mounts 在 Unraid(Linux) 上最直接；本地沙箱(macOS) 退回 df
+  local t
+  t=$(awk -v d="$1" '$2==d {print $3; exit}' /proc/mounts 2>/dev/null)
+  [ -n "$t" ] || t=$(df -T "$1" 2>/dev/null | awk 'NR==2 {print $2}')
+  printf '%s' "${t:-?}"
+}
+
+# 证书目录体检：certbot 在容器里要跨 /etc/letsencrypt/archive 与 live 建符号链接，
+# 目录必须 (a) 容器进程可写、(b) 底层文件系统支持符号链接。
+# 这两点不满足时 certbot 只报 EPERM，很容易被当成 Unraid 权限问题排查半天。
+audit_cert_dir() {
+  local probe="${CERT_DIR}/.cb-probe-$$"
+  local fstype mountopts
+  echo "—— 证书目录体检 ——"
+  echo "目录        : ${CERT_DIR}"
+  if [ ! -d "$CERT_DIR" ]; then
+    echo "状态        : 不存在（首次续期时会自动创建）"
+    return 0
+  fi
+  echo "属主/权限   : $(cb_own "$CERT_DIR")"
+
+  fstype=$(cb_fstype "$CERT_DIR")
+  mountopts=$(awk -v d="$CERT_DIR" '$2==d {print $4}' /proc/mounts 2>/dev/null | head -n1)
+  if [ -n "$mountopts" ]; then
+    echo "文件系统    : ${fstype}  挂载选项: ${mountopts}"
+  else
+    echo "文件系统    : ${fstype}"
+  fi
+
+  if [ -w "$CERT_DIR" ]; then
+    echo "可写(本机)  : 是"
+  else
+    echo "可写(本机)  : 否（续期会失败）"
+  fi
+
+  if ln -s "$CERT_DIR" "$probe" 2>/dev/null; then
+    rm -f "$probe"
+    echo "符号链接    : 支持"
+  else
+    rm -f "$probe"
+    echo "符号链接    : 不支持（续期会失败）"
+    echo "              请改用 /mnt/user/appdata/letsencrypt（需先启动阵列）。"
+  fi
+
+  local archive="${CERT_DIR}/archive" live="${CERT_DIR}/live"
+  [ -d "$archive" ] && echo "archive 属主: $(cb_own "$archive")"
+  [ -d "$live" ]    && echo "live 属主   : $(cb_own "$live")"
+  case "${mountopts}" in
+    ro|ro,*|*,ro|*,ro,*)
+      echo "注意        : 只读挂载（续期会失败）" ;;
+  esac
+}
+
 record_history() {
   # $1=结果 $2=域名列表 $3=说明
   local result="$1" domains="$2" message="$3"
@@ -131,6 +190,21 @@ record_history() {
     tail -n "$MAX_HISTORY_LINES" "$HISTORY_FILE" > "${HISTORY_FILE}.tmp" 2>/dev/null \
       && mv "${HISTORY_FILE}.tmp" "$HISTORY_FILE"
   fi
+}
+
+# certbot 自己的报错只有最后一两行有用（前面是 Saving debug log / Waiting 之类）。
+# 历史记录里如果只写「详见日志」，用户看到的就是「失败，详见日志」而日志里还是
+# 「失败，详见日志」这种自指循环，所以这里把它最后一句抓出来。
+# 注意本函数在 fail() 之前调用，日志里还没有本次的 ❌ 行。
+certbot_reason() {
+  [ -f "$LOG_FILE" ] || return 0
+  tail -n 25 "$LOG_FILE" 2>/dev/null \
+    | grep -v '^\[' \
+    | grep -v '❌' \
+    | grep -v '^[[:space:]]*$' \
+    | grep -Ei 'Error|error occurred|PermissionError|Traceback|Failed|Unauthorized|Invalid|rate ?limit|challenge|Connection' \
+    | tail -n 1 \
+    | cut -c1-180
 }
 
 fail() {
@@ -224,6 +298,7 @@ if [ "$STATUS_ONLY" = "yes" ]; then
   fi
   bundle="${SSL_CERTS_DIR}/${UNRAID_HOSTNAME}_unraid_bundle.pem"
   echo "bundle 文件 : ${bundle} $([ -f "$bundle" ] && echo '(存在)' || echo '(缺失)')"
+  audit_cert_dir
   exit 0
 fi
 
@@ -235,16 +310,16 @@ rotate_log
 log "======== 开始续期 (触发: ${TRIGGER}${FORCE:+, force=${FORCE}}${STAGING:+, staging=${STAGING}}) ========"
 
 if [ -z "$ACME_EMAIL" ]; then
-  fail 1 "未配置邮箱，请在 Settings → Unraid Certbot 中填写"
+  fail 1 "未配置邮箱"
 fi
 if [ -z "$UNRAID_HOSTNAME" ]; then
-  fail 1 "未配置 Unraid 主机名，请在 Settings → Unraid Certbot 中填写"
+  fail 1 "未配置主机名"
 fi
 if [ -z "$DOMAINS" ]; then
-  fail 1 "未配置域名，请在 Settings → Unraid Certbot 中填写"
+  fail 1 "未配置域名"
 fi
 if [ ! -s "$CRED_FILE" ]; then
-  fail 1 "缺少 Cloudflare 凭据文件 ${CRED_FILE}，请在设置页填写 API Token"
+  fail 1 "未配置 Cloudflare API Token"
 fi
 case "$CERT_DIR" in
   /*) ;;
@@ -272,7 +347,7 @@ PRIMARY_DOMAIN="${DOMAIN_ARRAY[0]}"
 # 锁：mkdir 是原子的，无需依赖 flock；同时能识别陈旧的锁
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   if [ -f "${LOCK_DIR}/pid" ] && kill -0 "$(cat "${LOCK_DIR}/pid" 2>/dev/null)" 2>/dev/null; then
-    log "⏭️  已有一次续期正在进行 (PID $(cat "${LOCK_DIR}/pid"))，本次跳过"
+    log "已有续期正在进行，跳过 (PID $(cat "${LOCK_DIR}/pid"))"
     exit 3
   fi
   log "⚠️  清理陈旧的锁目录 ${LOCK_DIR}"
@@ -284,21 +359,38 @@ trap 'rm -rf "$LOCK_DIR"' EXIT
 
 # Docker 可用性 —— 给出明确原因，而不是让 docker run 抛晦涩错误
 if ! command -v "$DOCKER" >/dev/null 2>&1; then
-  fail 4 "找不到 docker 命令（当前使用：${DOCKER}）"
+  fail 4 "未找到 docker 命令"
 fi
 if ! "$DOCKER" info >/dev/null 2>&1; then
-  fail 4 "Docker 服务未运行（通常是阵列未启动）。请启动阵列后重试。"
+  fail 4 "Docker 服务未运行（通常是阵列未启动）"
 fi
 
 if ! "$DOCKER" image inspect "$IMAGE" >/dev/null 2>&1; then
-  log "⬇️  本地没有 ${IMAGE} 镜像，正在拉取..."
+  log "正在拉取镜像 ${IMAGE}"
   if ! "$DOCKER" pull "$IMAGE"; then
-    fail 2 "拉取镜像 ${IMAGE} 失败，请检查网络或先在终端手动 docker pull"
+    fail 2 "拉取镜像失败，请检查网络"
   fi
 fi
 
 mkdir -p "$CERT_DIR" || fail 1 "无法创建证书目录 ${CERT_DIR}"
 chmod 700 "$CERT_DIR" 2>/dev/null
+
+# certbot 会在 /etc/letsencrypt 下建符号链接（archive -> live）。
+# 底层文件系统不支持软链时它只报 EPERM，先自己探一次，给出能看懂的结论。
+# 已知的 FAT 家族直接点名，提示更具体；其余靠下面的实测兜底。
+case "$(echo "$(cb_fstype "$CERT_DIR")" | tr 'A-Z' 'a-z')" in
+  vfat|msdos|exfat|fat|fat32|ntfs|ntfs3)
+    fail 2 "证书目录位于 $(cb_fstype "$CERT_DIR") 文件系统，不支持符号链接，请改用 /mnt/user/appdata/letsencrypt（需先启动阵列）"
+    ;;
+esac
+if [ ! -w "$CERT_DIR" ]; then
+  fail 2 "证书目录不可写，请检查权限（root:root 700）"
+fi
+if ! ln -s "$CERT_DIR" "${CERT_DIR}/.cb-probe-$$" 2>/dev/null; then
+  rm -f "${CERT_DIR}/.cb-probe-$$"
+  fail 2 "证书目录所在文件系统不支持符号链接，请改用 /mnt/user/appdata/letsencrypt"
+fi
+rm -f "${CERT_DIR}/.cb-probe-$$"
 
 # ---------------------------------------------------------------------------
 # 运行 certbot
@@ -322,7 +414,7 @@ CERTBOT_ARGS=(
 
 if [ "$STAGING" = "yes" ]; then
   CERTBOT_ARGS+=(--server "$STAGING_SERVER")
-  log "⚠️  使用 Let's Encrypt 测试环境 —— 签出的证书不被浏览器信任"
+  log "⚠️ 使用 Let's Encrypt 测试环境，签发的证书不受浏览器信任"
 fi
 if [ "$FORCE" = "yes" ]; then
   CERTBOT_ARGS+=(--force-renewal)
@@ -332,7 +424,7 @@ for d in "${DOMAIN_ARRAY[@]}"; do
   CERTBOT_ARGS+=(-d "$d")
 done
 
-log "📜 请求证书：${DOMAIN_ARRAY[*]}"
+log "请求证书：${DOMAIN_ARRAY[*]}"
 
 {
   printf '\n[%s] $ %s run --rm %s certbot %s\n' \
@@ -340,6 +432,7 @@ log "📜 请求证书：${DOMAIN_ARRAY[*]}"
 } >> "$LOG_FILE"
 
 "$DOCKER" run --rm \
+  --user 0:0 \
   -v "${CERT_DIR}:/etc/letsencrypt" \
   -v "${CRED_FILE}:/cloudflare.ini:ro" \
   "$IMAGE" "${CERTBOT_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
@@ -347,7 +440,11 @@ log "📜 请求证书：${DOMAIN_ARRAY[*]}"
 CERTBOT_RC="${PIPESTATUS[0]}"
 
 if [ "$CERTBOT_RC" -ne 0 ]; then
-  fail 2 "certbot 执行失败 (退出码 ${CERTBOT_RC})，详见日志"
+  reason="$(certbot_reason)"
+  if [ -n "$reason" ]; then
+    fail 2 "certbot 执行失败 (退出码 ${CERTBOT_RC})：${reason}"
+  fi
+  fail 2 "certbot 执行失败 (退出码 ${CERTBOT_RC})，详见运行日志"
 fi
 
 # ---------------------------------------------------------------------------
@@ -372,14 +469,14 @@ chmod 600 "$TEMP_BUNDLE"
 # 幂等：内容没变就不动 nginx
 if [ -f "$OUTPUT_FILE" ] && cmp -s "$TEMP_BUNDLE" "$OUTPUT_FILE"; then
   rm -f "$TEMP_BUNDLE"
-  log "ℹ️  证书内容未变化，跳过写入与重启"
+  log "证书内容未变化，跳过写入与重启"
   record_history "成功" "${DOMAIN_ARRAY[*]}" "证书未变化，无需更新"
   exit 0
 fi
 
 if [ -f "$OUTPUT_FILE" ]; then
   BACKUP_FILE="${OUTPUT_FILE}.$(date +%Y%m%d)"
-  log "🌀 备份旧证书到 ${BACKUP_FILE}"
+  log "备份旧证书到 ${BACKUP_FILE}"
   cp "$OUTPUT_FILE" "$BACKUP_FILE" && chmod 600 "$BACKUP_FILE"
 fi
 
@@ -392,17 +489,17 @@ log "✅ 新证书已写入 ${OUTPUT_FILE}"
 # ---------------------------------------------------------------------------
 
 if [ "$RESTART_NGINX" = "yes" ]; then
-  log "🔁 重启 Unraid Web 管理服务 (nginx)..."
+  log "重启 nginx..."
   if [ -x "$NGINX_RC" ] && "$NGINX_RC" restart >/dev/null 2>&1; then
     log "✅ nginx 已重启"
   else
-    log "⚠️  nginx 重启返回非零，请检查 webGUI 是否正常"
+    log "⚠️ nginx 重启失败，请检查 webGUI 是否正常"
   fi
 else
-  log "ℹ️  按配置跳过 nginx 重启（新证书将在下次重启 web 服务后生效）"
+  log "已跳过 nginx 重启，新证书将在下次重启 web 服务后生效"
 fi
 
 EXPIRY=$(openssl x509 -noout -enddate -in "$OUTPUT_FILE" 2>/dev/null | cut -d= -f2)
-log "🎉 完成。证书到期时间：${EXPIRY:-未知}"
+log "✅ 完成，证书到期时间：${EXPIRY:-未知}"
 record_history "成功" "${DOMAIN_ARRAY[*]}" "证书已更新，到期时间 ${EXPIRY:-未知}"
 exit 0

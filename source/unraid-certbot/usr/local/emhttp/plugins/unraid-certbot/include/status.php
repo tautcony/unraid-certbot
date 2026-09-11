@@ -250,6 +250,127 @@ function cb_image_ok(): bool
 }
 
 /**
+ * 证书目录的文件系统能力检查。
+ *
+ * certbot 会在 /etc/letsencrypt 下把 archive/<域名>/xxx.pem 链接成
+ * live/<域名>/xxx.pem，也就是必须能建符号链接。FAT / exFAT 之类不支持软链的
+ * 文件系统上，certbot 只会抛一句 PermissionError (EPERM)，看起来像权限问题，
+ * 实际是文件系统不支持。所以这里提前把结论算出来。
+ *
+ * 返回 [ok, reason, 详情数组]；ok=false 时 reason 是可以直接显示的结论。
+ */
+function cb_fs_check(string $dir, bool $create = false): array
+{
+    $info = [
+        'dir'      => $dir,
+        'real'     => $dir,
+        'fstype'   => '',
+        'ro'       => false,
+        'symlink'  => null,   // null=未测到
+        'writable' => null,
+    ];
+
+    $real = $dir;
+    if (!is_dir($real)) {
+        if ($create) {
+            @mkdir($real, 0700, true);
+        }
+        if (!is_dir($real)) {
+            // 目录还不存在：就近找一个已存在的父目录来判断文件系统能力
+            $probe = $real;
+            while ($probe !== '' && $probe !== '/' && !is_dir($probe)) {
+                $probe = dirname($probe);
+            }
+            return [true, '目录不存在，将在首次续期时创建', $info + ['probe' => $probe]];
+        }
+    }
+    $info['real'] = $real;
+
+    // 文件系统类型与挂载选项：取挂载点最长的那个（bind mount / 子卷都能对上）
+    $mounts = @file_get_contents('/proc/mounts');
+    if ($mounts !== false) {
+        $best = '';
+        foreach (explode("\n", $mounts) as $line) {
+            $f = preg_split('/\s+/', trim($line));
+            if (count($f) < 4) {
+                continue;
+            }
+            $mp = str_replace('\\040', ' ', $f[1]);
+            if (($real === $mp || strpos($real, rtrim($mp, '/') . '/') === 0) && strlen($mp) > strlen($best)) {
+                $best    = $mp;
+                $info['fstype'] = $f[2];
+                $opts           = explode(',', $f[3]);
+                $info['ro']     = in_array('ro', $opts, true);
+            }
+        }
+        $info['mount'] = $best;
+    }
+    if ($info['fstype'] === '') {
+        // 非 Linux（本地调试）拿不到 /proc/mounts，按平台兜底
+        $arg = escapeshellarg($real);
+        if (PHP_OS_FAMILY === 'Darwin') {
+            $out = @shell_exec("diskutil info {$arg} 2>/dev/null | awk -F: '/File System Personality/ {gsub(/^ +| +$/, \"\", $2); print $2}'");
+        } else {
+            $out = @shell_exec("stat -c '%T' {$arg} 2>/dev/null || stat -f '%T' {$arg} 2>/dev/null");
+        }
+        $info['fstype'] = trim((string)$out) ?: 'unknown';
+    }
+
+    $info['writable'] = is_writable($real);
+
+    // 真建一个软链再删掉：这是唯一可靠的判定方式
+    $probeFile = $real . '/.cb-fsprobe-' . getmypid();
+    $probeLink = $probeFile . '.lnk';
+    if (@file_put_contents($probeFile, 'x') !== false) {
+        $info['symlink'] = @symlink($probeFile, $probeLink);
+        if ($info['symlink']) {
+            @unlink($probeLink);
+        }
+        @unlink($probeFile);
+    }
+
+    // 本地调试用：CB_FAKE_FSTYPE=vfat 可以模拟 FAT 上的目录，
+    // 用来验证「不支持软链就拒绝保存」这条分支（真机不需要设置）
+    if (($fake = trim((string)getenv('CB_FAKE_FSTYPE'))) !== '') {
+        $info['fstype'] = $fake;
+    }
+
+    $fstype = strtolower($info['fstype']);
+    if ($info['ro']) {
+        return [false, "证书目录 {$dir} 所在文件系统为只读挂载", $info];
+    }
+    if (in_array($fstype, ['vfat', 'msdos', 'exfat', 'fat', 'fat32', 'ntfs', 'ntfs3'], true)) {
+        return [false, "证书目录 {$dir} 位于 {$info['fstype']} 文件系统，不支持符号链接，请改用 /mnt/user/appdata/letsencrypt", $info];
+    }
+    if ($info['symlink'] === false) {
+        return [false, "证书目录 {$dir} 所在文件系统不支持符号链接，请改用 /mnt/user/appdata/letsencrypt", $info];
+    }
+    if ($info['writable'] === false) {
+        return [false, "证书目录 {$dir} 不可写，请检查权限（root:root 700）", $info];
+    }
+
+    return [true, '可用', $info];
+}
+
+/**
+ * 把 cb_fs_check 的详情压成一行，给设置页/状态页显示。
+ */
+function cb_fs_summary(array $info): string
+{
+    $parts = [];
+    if (!empty($info['fstype'])) {
+        $parts[] = '文件系统 ' . $info['fstype'];
+    }
+    if (array_key_exists('symlink', $info) && $info['symlink'] !== null) {
+        $parts[] = $info['symlink'] ? '支持软链' : '不支持软链';
+    }
+    if (array_key_exists('writable', $info) && $info['writable'] !== null) {
+        $parts[] = $info['writable'] ? '可写' : '不可写';
+    }
+    return implode(' · ', $parts);
+}
+
+/**
  * 汇总状态。$cfg 来自 parse_plugin_cfg()。
  */
 function cb_status(array $cfg): array
@@ -260,6 +381,7 @@ function cb_status(array $cfg): array
     $certDir = rtrim(trim((string)($cfg['CERT_DIR'] ?? '')), '/') ?: '/boot/config/letsencrypt';
     // 配置里存的是 Unraid 上的路径，本地调试也要挂到沙箱
     $certDir = cb_syspath($certDir);
+    [$fsOk, $fsReason, $fsInfo] = cb_fs_check($certDir);
 
     $bundlePath = $host !== '' ? CB_SSL_DIR . "/{$host}_unraid_bundle.pem" : null;
     $bundle     = cb_cert_info($bundlePath);
@@ -313,6 +435,10 @@ function cb_status(array $cfg): array
         'last_ok'    => $lastOk,
         'docker_ok'  => cb_docker_ok(),
         'image_ok'   => cb_image_ok(),
+        'fs_ok'      => $fsOk,
+        'fs_reason'  => $fsReason,
+        'fs_info'    => $fsInfo,
+        'fs_summary' => cb_fs_summary($fsInfo),
         'schedule'   => (string)($cfg['SCHEDULE'] ?? 'daily'),
         'staging'    => cb_bool($cfg['STAGING'] ?? 'no'),
         'restart_nginx' => cb_bool($cfg['RESTART_NGINX'] ?? 'yes'),

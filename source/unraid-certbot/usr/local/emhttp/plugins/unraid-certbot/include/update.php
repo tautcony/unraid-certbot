@@ -71,7 +71,7 @@ if (empty($domains)) {
     } else {
         $_POST['DOMAINS'] = implode(',', $domains);
         if (count($domains) > 1) {
-            cb_notice('域名解析为 ' . count($domains) . ' 个，主域名（证书目录名）为 ' . $domains[0]);
+            cb_notice('已识别 ' . count($domains) . ' 个域名，主域名：' . $domains[0]);
         }
     }
 }
@@ -82,7 +82,7 @@ if (empty($domains)) {
 
 $email = trim((string)($_POST['ACME_EMAIL'] ?? ''));
 if ($email === '') {
-    cb_error('邮箱不能为空，Let\'s Encrypt 用它发送证书到期提醒');
+    cb_error('请填写邮箱');
 } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     cb_error("邮箱格式不正确：{$email}");
 } else {
@@ -95,9 +95,9 @@ if ($email === '') {
 
 $host = trim((string)($_POST['UNRAID_HOSTNAME'] ?? ''));
 if ($host === '') {
-    cb_error('Unraid 主机名不能为空');
+    cb_error('请填写 Unraid 主机名');
 } elseif (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/', $host)) {
-    cb_error("主机名含有非法字符：{$host}");
+    cb_error("主机名格式不正确：{$host}");
 } else {
     $_POST['UNRAID_HOSTNAME'] = $host;
 }
@@ -129,8 +129,20 @@ if ($certDir[0] !== '/') {
     // .cfg 里存 Unraid 上的路径，落盘时再映射到沙箱
     $_POST['CERT_DIR'] = $certDir;
     $realCertDir = cb_syspath($certDir);
-    if (!is_dir($realCertDir) && !@mkdir($realCertDir, 0700, true)) {
-        cb_error("无法创建证书目录 {$certDir}，请检查路径与权限");
+
+    // 文件系统能力检查：certbot 要在 live/ 与 archive/ 之间建软链，
+    // 放在 FAT/exFAT 上必然失败。这里直接拦住，别等续期时才炸出一句 EPERM。
+    [$fsOk, $fsReason, $fsInfo] = cb_fs_check($realCertDir, true);
+    if (!$fsOk) {
+        // 沙箱下 $fsReason 里是映射后的路径，显示前还原成配置里的路径
+        cb_error(str_replace($realCertDir, $certDir, $fsReason));
+    } else {
+        $summary = cb_fs_summary($fsInfo);
+        cb_notice("证书目录可用：{$certDir}" . ($summary !== '' ? "（{$summary}）" : ''));
+        if ($fsInfo['symlink'] === null) {
+            // 目录刚建出来但没法测（例如父目录只读），续期前还会再检一次
+            cb_say('⚠️ 未能完成目录自检，续期前将重新检查');
+        }
     }
 }
 
@@ -161,7 +173,7 @@ if ($clearTok) {
     }
 } elseif ($newToken !== '') {
     if (!preg_match('/^[A-Za-z0-9_\-]{20,100}$/', $newToken)) {
-        cb_error('Cloudflare API Token 格式看起来不对（应为 20–100 位的字母数字、下划线或连字符）');
+        cb_error('Cloudflare API Token 格式不正确');
     } else {
         if (!is_dir($cbCfgDir) && !@mkdir($cbCfgDir, 0700, true)) {
             cb_error("无法创建配置目录 {$cbCfgDir}");
@@ -181,7 +193,7 @@ if ($clearTok) {
     }
 } elseif (!cb_has_token()) {
     // 既没填新的，也没有旧的
-    cb_error('还没有配置 Cloudflare API Token');
+    cb_error('请填写 Cloudflare API Token');
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +219,7 @@ if (cb_errors() === []) {
     }
 
     if (cb_bool($_POST['STAGING'] ?? 'no')) {
-        cb_say('⚠️ 当前使用 Let\'s Encrypt 测试环境，签出的证书不被浏览器信任，验证完请记得关掉');
+        cb_say('⚠️ 测试环境签发的证书不受浏览器信任');
     }
 
     cb_notice('设置已保存');
@@ -216,8 +228,8 @@ if (cb_errors() === []) {
     // 注意：Token 是单独存进 cloudflare.ini 的，上面已经写过了 —— 这里要说清楚，
     // 否则用户会以为 Token 也没存上，修完别的字段后又重新粘贴一遍。
     $save = false;
-    cb_say('除 Token 外的设置未保存，请修正上面标出的问题', '⚠️ ');
-    cb_say('（Token 已单独保存，修改其它字段时留空即可，不用重新输入）');
+    cb_say('设置未保存，请修正上述问题', '⚠️ ');
+    cb_say('（Token 已单独保存，无需重新输入）');
 }
 
 // 设置页的「设置」标签上有一块 #cb-update-result。这段脚本是在 progressFrame

@@ -19,6 +19,18 @@ function cb_status_panel(array $st, string $cb): void
         'unknown' => ['grey-text',   '尚未签发'],
     ][$st['health']];
 ?>
+<?php if (empty($st['fs_ok'])): ?>
+<blockquote class="inline_help cb-help-open">
+<b><?=_('证书目录不可用，续期将失败')?></b><br>
+<?=cb_e((string)$st['fs_reason'])?><br>
+<span class="grey-text">
+  <?=_('当前目录')?>：<code><?=cb_e((string)$st['cert_dir'])?></code>
+  <?php if (!empty($st['fs_summary'])): ?>（<?=cb_e((string)$st['fs_summary'])?>）<?php endif; ?>
+  <?=_('请到「设置」改用 /mnt/user/appdata/letsencrypt（需先启动阵列）。')?>
+</span>
+</blockquote>
+<?php endif; ?>
+
 <div class="cb-actions" style="margin-bottom:1rem">
   <input type="button" value="<?=_('立即检查并续期')?>" onclick="cbRun('renew')">
   <input type="button" value="<?=_('强制续期')?>" onclick="cbRun('force')">
@@ -48,11 +60,11 @@ function cb_status_panel(array $st, string $cb): void
 </table>
 <?php else: ?>
 <blockquote class="inline_help cb-help-open">
-<b>尚未找到已安装的证书。</b>
+<b>尚未签发证书。</b>
 <?php if (!$st['bundle_path']): ?>
 先在 <a href="/Settings/UnraidCertbot?tab=config">设置</a> 里填写 Unraid 主机名。
 <?php else: ?>
-<code><?=cb_e($st['bundle_path'])?></code> 不存在，可能尚未成功续期。
+执行「立即检查并续期」以签发证书。
 <?php endif; ?>
 </blockquote>
 <?php endif; ?>
@@ -67,9 +79,7 @@ function cb_status_panel(array $st, string $cb): void
   <tr><th>覆盖域名</th><td><?=cb_e(implode(', ', $st['live']['sans']))?></td></tr>
 </table>
 <?php else: ?>
-<blockquote class="inline_help">
-<code><?=cb_e($st['cert_dir'])?>/live/<?=cb_e($st['primary'] ?: '<主域名>')?>/fullchain.pem</code> 不存在。
-</blockquote>
+<blockquote class="inline_help">尚未签发。</blockquote>
 <?php endif; ?>
 
 <h3>运行环境</h3>
@@ -82,7 +92,14 @@ function cb_status_panel(array $st, string $cb): void
       <?php if ($st['image_ok']): ?><span class="green-text">已存在</span>
       <?php else: ?><span class="grey-text">未拉取（首次运行时自动拉取）</span><?php endif; ?>
   </td></tr>
-  <tr><th>证书目录</th><td><code><?=cb_e($st['cert_dir'])?></code></td></tr>
+  <tr><th>证书目录</th><td>
+      <code><?=cb_e($st['cert_dir'])?></code>
+      <?php if (empty($st['fs_ok'])): ?>
+        <br><span class="red-text"><?=_('该目录不可用')?>：<?=cb_e((string)$st['fs_reason'])?></span>
+      <?php elseif (!empty($st['fs_summary'])): ?>
+        <br><span class="grey-text"><?=cb_e((string)$st['fs_summary'])?></span>
+      <?php endif; ?>
+  </td></tr>
   <tr><th>DNS 传播等待</th><td><?=$st['propagation']?> 秒</td></tr>
   <tr><th>自动续期</th><td><?=cb_e(cb_schedule_label($st['schedule']))?></td></tr>
   <tr><th>重启 nginx</th><td><?=$st['restart_nginx'] ? '是' : '否'?></td></tr>
