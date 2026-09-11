@@ -1,0 +1,36 @@
+unraid-certbot.plg
+  h_3705811fa4502c 5,22-23,41-42
+README.md
+  h_3705811fa4502c 5
+VERSION
+  h_3705811fa4502c 1
+dev/README.md
+  h_3705811fa4502c 16-18,20-24,57,59
+dev/lib/emhttp.php
+  h_3705811fa4502c 61-73,80-81,90-103,170-171,174,177-178,372-475,504
+dev/server.php
+  h_3705811fa4502c 8-10,62-63,74-79,123-124,138-139,143-163,188-191
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/CertStatus.page
+  h_3705811fa4502c 6-16,18-20
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/config-form.php
+  h_3705811fa4502c 1-108
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/history-panel.php
+  h_3705811fa4502c 1-47
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status-panel.php
+  h_3705811fa4502c 1-108
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/update.php
+  h_3705811fa4502c 222-228
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/unraid-certbot.page
+  h_3705811fa4502c 1,6-19,23-25,30-39,41,47-48,51-80,82,84,87-99,101-104,106,108-125,127-136,138,146-147,149-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "11c0c1a255ff47aa2a8aedce5d91fb76502365a2",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
