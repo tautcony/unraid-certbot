@@ -36,8 +36,8 @@ exit 0
 
 <FILE Name="/boot/config/plugins/&name;/&pkgfile;" Run="upgradepkg --install-new">
 <URL>https://github.com/&github;/releases/download/&version;/&pkgfile;</URL>
-<MD5>08bcb9cc58dea25cb5288803b7f74a8d</MD5>
-<SHA256>0717b13eb5abb130dbeb6873746343177f389799e596f78dbde72c7b22cd9860</SHA256>
+<MD5>6317d59b5bdf282f6927df8b8860a72a</MD5>
+<SHA256>0b7bd923c780f49713464771560ca317a3cbdb30efd8c593b10c08245edd04e3</SHA256>
 </FILE>
 
 <FILE Run="/bin/bash">
