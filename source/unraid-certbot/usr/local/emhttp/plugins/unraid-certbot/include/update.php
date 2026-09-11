@@ -219,3 +219,10 @@ if (cb_errors() === []) {
     cb_say('除 Token 外的设置未保存，请修正上面标出的问题', '⚠️ ');
     cb_say('（Token 已单独保存，修改其它字段时留空即可，不用重新输入）');
 }
+
+// 设置页的「设置」标签上有一块 #cb-update-result。这段脚本是在 progressFrame
+// 这个 iframe 里执行的，所以要经 parent 调过去；进度框里的 addLog 输出照旧。
+$cbResultMsg = $save ? '设置已保存' : '设置未保存';
+echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult('
+   . ($save ? 'true' : 'false') . ',"' . $cbResultMsg . '");}</script>';
+

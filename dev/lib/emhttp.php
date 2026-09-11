@@ -58,13 +58,27 @@ function cb_dev_eval_body(string $body): string
 /** 处理 `_(文案)_` 翻译标记 */
 function cb_dev_translate(string $html): string
 {
-    return (string)preg_replace_callback(
+    // 同理：<style>/<script> 不是页面文案，不要在里面做 _(...)_ 替换
+    $held = [];
+    $html = (string)preg_replace_callback(
+        '#<(style|script)\b[^>]*>.*?</\1>#is',
+        static function (array $m) use (&$held): string {
+            $key = "\x00CBTR" . count($held) . "\x00";
+            $held[$key] = $m[0];
+            return $key;
+        },
+        $html
+    );
+
+    $html = (string)preg_replace_callback(
         '/_\((.*?)\)_/s',
         static function (array $m): string {
             return function_exists('_') ? (string)_($m[1]) : $m[1];
         },
         $html
     );
+
+    return $held ? strtr($html, $held) : $html;
 }
 
 /**
@@ -73,6 +87,20 @@ function cb_dev_translate(string $html): string
  */
 function cb_dev_definition_lists(string $html): string
 {
+    // <style>/<script> 里的 CSS/JS 不是 markdown，先摘出来，否则 ":root{...}" 会被
+    // 当成定义列表项吃掉（预览面板就踩过这个坑），处理完再原样放回。
+    // 注意 cb_dev_render_page 传进来的是 .page 正文，正文里没有 <style>，不受影响。
+    $held = [];
+    $html = (string)preg_replace_callback(
+        '#<(style|script)\b[^>]*>.*?</\1>#is',
+        static function (array $m) use (&$held): string {
+            $key = "\x00CBHOLD" . count($held) . "\x00";
+            $held[$key] = $m[0];
+            return $key;
+        },
+        $html
+    );
+
     $lines    = explode("\n", $html);
     $out      = [];
     $inList   = false;
@@ -139,91 +167,15 @@ function cb_dev_definition_lists(string $html): string
 
     $closeList();
 
+    if ($held) {
+        return strtr(implode("\n", $out), $held);
+    }
+
     return implode("\n", $out);
 }
 
-/** 渲染 .page 为完整 HTML */
-function cb_dev_render_page(string $file, array $ctx = []): string
-{
-    global $docroot;
-
-    [$head, $body] = cb_dev_page_parts($file);
-    $html = cb_dev_eval_body($body);
-    // 先切定义列表（此时 _(...)_ 还在，用来识别标签行），再统一翻译
-    $html = cb_dev_definition_lists($html);
-    $html = cb_dev_translate($html);
-
-    $ctx['source'] = $ctx['source'] ?? $file;
-
-    return cb_dev_chrome($head, $html, $ctx);
-}
-
-/** 顶部菜单；预览里不存在的页面保持灰显 */
-function cb_dev_nav(string $current): string
-{
-    $items = [
-        ['仪表板', '',                       false],
-        ['主界面', '',                       false],
-        ['共享',   '',                       false],
-        ['用户',   '',                       false],
-        ['设置',   '/Settings/UnraidCertbot', true],
-        ['插件',   '',                       false],
-        ['DOCKER', '',                       false],
-        ['虚拟机', '',                       false],
-        ['应用',   '',                       false],
-        ['工具',   '/Utilities/CertStatus',   true],
-    ];
-
-    $out = '';
-    foreach ($items as [$label, $href, $real]) {
-        $active = ($real && $href !== '' && strcasecmp($current, $href) === 0) ? ' active' : '';
-
-        if (!$real || $href === '') {
-            $out .= '<div class="nav-item disabled"><a title="本地预览里没有这个页面">' . $label . '</a></div>';
-        } else {
-            $out .= '<div class="nav-item' . $active . '"><a href="'
-                  . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '">' . $label . '</a></div>';
-        }
-    }
-
-    return $out;
-}
-
-/** 把正文套进 Unraid 外壳 */
-function cb_dev_chrome(array $head, string $body, array $ctx = []): string
-{
-    $title   = $head['Title'] ?? 'Unraid';
-    $devRoot = (string)($ctx['dev_root'] ?? '');
-    $source  = (string)($ctx['source'] ?? '');
-    $current = (string)($ctx['current'] ?? '/');
-    $host    = (string)($ctx['host'] ?? 'tower');
-    $version = (string)($ctx['version'] ?? '7.3.2');
-    $uptime  = (string)($ctx['uptime'] ?? '0 天 00:00');
-
-    $themeParam  = isset($_GET['theme']) ? ((string)$_GET['theme'] === 'black' ? 'black' : 'white') : null;
-    $theme       = $themeParam ?? 'white';
-    $themeForced = $themeParam !== null ? 'true' : 'false';
-    $themeClass  = 'Theme--' . $theme;
-    $themeUpper  = strtoupper($theme);
-    $helpOpen    = isset($_GET['help']) ? 'true' : 'false';
-
-    $titleHtml  = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
-    $rootHtml   = htmlspecialchars($devRoot, ENT_QUOTES, 'UTF-8');
-    $sourceHtml = htmlspecialchars($source, ENT_QUOTES, 'UTF-8');
-    $hostHtml   = htmlspecialchars($host, ENT_QUOTES, 'UTF-8');
-    $verHtml    = htmlspecialchars($version, ENT_QUOTES, 'UTF-8');
-    $uptimeHtml = htmlspecialchars($uptime, ENT_QUOTES, 'UTF-8');
-    $nav        = cb_dev_nav($current);
-    $logoPath   = CB_DEV_LOGO_PATH;
-
-    return <<<HTML
-<!DOCTYPE html>
-<html lang="zh-CN" class="{$themeClass}" data-theme="{$theme}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{$titleHtml} · Unraid</title>
-<style>
+/** 预览外壳与控件样式：取自 Unraid 7 webGUI，/page 与对话框形态共用 */
+const CB_DEV_STYLES = <<<'CSS'
 /* 调色板与主题变量：Unraid 7 的 default-color-palette.css / themes/*.css */
 :root{
   --black:#1d1b1b; --black-opacity-05:rgba(0,0,0,.05); --black-opacity-30:rgba(0,0,0,.3);
@@ -417,7 +369,110 @@ th{color:var(--gray-500);font-weight:normal;}
 .cb-ok{background:var(--green-100);color:var(--green-900);}
 .cb-fail{background:var(--red-100);color:var(--red-900);}
 .cb-log{background:#111;color:#d4d4d4;border:1px solid var(--border-color);border-radius:4px;padding:1.2rem;font-family:var(--font-bitstream);font-size:1.2rem;line-height:1.6;max-height:52rem;overflow:auto;white-space:pre-wrap;word-break:break-all;}
-</style>
+CSS;
+
+/** 渲染 .page 为完整 HTML */
+function cb_dev_render_page(string $file, array $ctx = []): string
+{
+    global $docroot;
+
+    [$head, $body] = cb_dev_page_parts($file);
+    $html = cb_dev_eval_body($body);
+
+    // 正文发了 Location（比如 CertStatus.page 只是跳到设置页）：按真机的响应处理，
+    // 不再套预览外壳，否则会把跳转页渲染成一张带菜单的空白页。
+    $headers = headers_list();
+    foreach ($headers as $h) {
+        if (stripos($h, 'Location:') !== 0) {
+            continue;
+        }
+        if (function_exists('http_response_code')) {
+            http_response_code(302);
+        }
+        return "<!DOCTYPE html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+             . "<meta http-equiv=\"refresh\" content=\"0; url=" . htmlspecialchars(trim(substr($h, 9)), ENT_QUOTES, 'UTF-8') . "\">"
+             . "</head><body style=\"font-family:sans-serif;padding:1rem\">" . $html . "</body></html>";
+    }
+
+    // 先切定义列表（此时 _(...)_ 还在，用来识别标签行），再统一翻译
+    $html = cb_dev_definition_lists($html);
+    $html = cb_dev_translate($html);
+
+    $ctx['source'] = $ctx['source'] ?? $file;
+
+    return cb_dev_chrome($head, $html, $ctx);
+}
+
+/** 顶部菜单；预览里不存在的页面保持灰显 */
+function cb_dev_nav(string $current): string
+{
+    $items = [
+        ['仪表板', '',                       false],
+        ['主界面', '',                       false],
+        ['共享',   '',                       false],
+        ['用户',   '',                       false],
+        ['设置',   '/Settings/UnraidCertbot', true],
+        ['插件',   '',                       false],
+        ['DOCKER', '',                       false],
+        ['虚拟机', '',                       false],
+        ['应用',   '',                       false],
+        ['工具',   '',                       false],
+    ];
+
+    // 设置类的页面（/Settings/...）在真机上都在「设置」下，预览里也统一高亮它
+    $current = preg_match('#^/Settings/#i', $current) ? '/Settings/UnraidCertbot' : $current;
+
+    $out = '';
+    foreach ($items as [$label, $href, $real]) {
+        $active = ($real && $href !== '' && strcasecmp($current, $href) === 0) ? ' active' : '';
+
+        if (!$real || $href === '') {
+            $out .= '<div class="nav-item disabled"><a title="本地预览里没有这个页面">' . $label . '</a></div>';
+        } else {
+            $out .= '<div class="nav-item' . $active . '"><a href="'
+                  . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '">' . $label . '</a></div>';
+        }
+    }
+
+    return $out;
+}
+
+/** 把正文套进 Unraid 外壳 */
+function cb_dev_chrome(array $head, string $body, array $ctx = []): string
+{
+    $title   = $head['Title'] ?? 'Unraid';
+    $devRoot = (string)($ctx['dev_root'] ?? '');
+    $source  = (string)($ctx['source'] ?? '');
+    $current = (string)($ctx['current'] ?? '/');
+    $host    = (string)($ctx['host'] ?? 'tower');
+    $version = (string)($ctx['version'] ?? '7.3.2');
+    $uptime  = (string)($ctx['uptime'] ?? '0 天 00:00');
+
+    $themeParam  = isset($_GET['theme']) ? ((string)$_GET['theme'] === 'black' ? 'black' : 'white') : null;
+    $theme       = $themeParam ?? 'white';
+    $themeForced = $themeParam !== null ? 'true' : 'false';
+    $themeClass  = 'Theme--' . $theme;
+    $themeUpper  = strtoupper($theme);
+    $helpOpen    = isset($_GET['help']) ? 'true' : 'false';
+
+    $titleHtml  = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $rootHtml   = htmlspecialchars($devRoot, ENT_QUOTES, 'UTF-8');
+    $sourceHtml = htmlspecialchars($source, ENT_QUOTES, 'UTF-8');
+    $hostHtml   = htmlspecialchars($host, ENT_QUOTES, 'UTF-8');
+    $verHtml    = htmlspecialchars($version, ENT_QUOTES, 'UTF-8');
+    $uptimeHtml = htmlspecialchars($uptime, ENT_QUOTES, 'UTF-8');
+    $nav        = cb_dev_nav($current);
+    $logoPath   = CB_DEV_LOGO_PATH;
+    $cbDevStyles = CB_DEV_STYLES; // heredoc 只展开变量，常量要先落地到变量
+
+    return <<<HTML
+<!DOCTYPE html>
+<html lang="zh-CN" class="{$themeClass}" data-theme="{$theme}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{$titleHtml} · Unraid</title>
+<style>{$cbDevStyles}</style>
 </head>
 <body>
 
@@ -446,7 +501,7 @@ th{color:var(--gray-500);font-weight:normal;}
   <div class="nav-tile">{$nav}</div>
   <div class="nav-tile right">
     <div class="nav-item"><a href="/" title="沙箱信息">信息</a></div>
-    <div class="nav-item"><a href="/Utilities/CertStatus" title="运行日志">日志</a></div>
+    <div class="nav-item"><a href="/Settings/UnraidCertbot?tab=log" title="运行日志">日志</a></div>
     <div class="nav-item"><a href="#" onclick="cbToggleHelp();return false;" title="展开/收起所有说明文字">帮助</a></div>
   </div>
 </div>

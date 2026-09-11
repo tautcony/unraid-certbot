@@ -5,8 +5,9 @@
  *   ./dev.sh                                              # 初始化沙箱并启动
  *   php -S 127.0.0.1:8080 -t dev/run/usr/local/emhttp dev/server.php
  *
- * 路由：/（调试首页）、/Settings/UnraidCertbot、/Utilities/CertStatus、
- * /update.php（仿真保存流程）；沙箱里真实存在的文件交给内置服务器。
+ * 路由：/（调试首页）、/Settings/UnraidCertbot（设置页）、插件端点
+ * （/plugins/unraid-certbot/**.php）、/update.php（仿真保存流程）；
+ * 沙箱里真实存在的其它文件交给内置服务器。
  */
 
 $ROOT = dirname(__DIR__);
@@ -58,9 +59,8 @@ if (strpos($uri, '..') !== false) {
     return true;
 }
 
-if ($uri !== '/' && is_file("$DOCROOT$uri")) {
-    return false;
-}
+// 插件目录里的 .php 端点要由路由接（真机上是 PHP 执行，不是当静态文件发出去），
+// 所以静态文件短路必须放在路由之后，见文件末尾的 cb_dev_static()。
 
 switch (true) {
     case $uri === '/' || $uri === '/index.php':
@@ -71,6 +71,12 @@ switch (true) {
         cb_dev_render($PLUGIN_DIR, 'unraid-certbot.page', $DEV_ROOT, $SEED_HINT, $uri);
         return true;
 
+    // 插件端点（exec.php 等）：真机上由 PHP 执行，不能当静态文件发出去
+    case preg_match('#^/plugins/unraid-certbot/[A-Za-z0-9_./-]+\.php$#', $uri) === 1:
+        cb_dev_endpoint($PLUGIN_DIR, ltrim($uri, '/'), $DEV_ROOT);
+        return true;
+
+    // 工具 → Cert Status：正文只是跳到设置页，预览里走同样的渲染路径
     case strcasecmp($uri, '/Utilities/CertStatus') === 0:
         cb_dev_render($PLUGIN_DIR, 'CertStatus.page', $DEV_ROOT, $SEED_HINT, $uri);
         return true;
@@ -114,8 +120,8 @@ function cb_dev_header_ctx(string $devRoot): array
     return ['host' => $host, 'version' => $version, 'uptime' => $uptime];
 }
 
-/** 渲染一个 .page */
-function cb_dev_render(string $pluginDir, string $page, string $devRoot, string $seedHint, string $current = '/'): void
+/** 渲染一个 .page；$box 保留给以后可能出现的对话框形态页面 */
+function cb_dev_render(string $pluginDir, string $page, string $devRoot, string $seedHint, string $current = '/', bool $box = false): void
 {
     $file = "$pluginDir/$page";
     header('Content-Type: text/html; charset=utf-8');
@@ -129,7 +135,30 @@ function cb_dev_render(string $pluginDir, string $page, string $devRoot, string 
         'dev_root' => $devRoot,
         'source'   => $rel,
         'current'  => $current,
+        'box'      => $box,
+        'title'    => 'Unraid Certbot 设置',
     ]);
+}
+
+/**
+ * 执行一个插件端点（include/exec.php 等）。
+ * 真机上这些 .php 由 PHP 直接执行，预览里也按原样跑：它们自带输出，
+ * exec.php 还会自己 readfile(logging.htm) 拿到 addLog 与按钮样式。
+ */
+function cb_dev_endpoint(string $pluginDir, string $rel, string $devRoot): void
+{
+    $file = $pluginDir . '/' . preg_replace('#^plugins/unraid-certbot/#', '', $rel);
+    header('Content-Type: text/html; charset=utf-8');
+    if (!is_file($file)) {
+        http_response_code(404);
+        echo '<p>找不到端点 ' . htmlspecialchars($rel, ENT_QUOTES, 'UTF-8') . '</p>';
+        return;
+    }
+
+    global $docroot;
+    $docroot = "$devRoot/usr/local/emhttp";
+
+    include $file;
 }
 
 /** 调试首页 */
@@ -156,8 +185,10 @@ function cb_dev_index(string $devRoot, string $docrootPath, string $pluginDir, s
           . '可以放心点按钮、改配置、跑续期。</p>';
 
     $body .= '<h3>快捷入口</h3><ul>'
-           . '<li><a href="/Settings/UnraidCertbot">设置页（Settings → Unraid Certbot）</a></li>'
-           . '<li><a href="/Utilities/CertStatus">状态页（Utilities → Cert Status）</a></li>'
+           . '<li><a href="/Settings/UnraidCertbot">设置页（设置 → Unraid Certbot，配置 / 状态 / 历史 / 日志）</a></li>'
+           . '<li><a href="/Settings/UnraidCertbot?tab=status">证书状态标签</a>'
+           . '（<a href="/Settings/UnraidCertbot?tab=history">续期历史</a>'
+           . ' / <a href="/Settings/UnraidCertbot?tab=log">运行日志</a>）</li>'
            . '<li><a href="/plugins/unraid-certbot/include/exec.php?action=docker" '
            . 'onclick="openBox(this.href, \'Docker 环境检查\', 820, 560); return false;">'
            . '打开 Docker 环境检查（假 docker）</a></li>'
