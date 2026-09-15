@@ -181,10 +181,9 @@ function cb_dev_index(string $devRoot, string $docrootPath, string $pluginDir, s
         '配置目录'   => $loaded ? CB_CFG_DIR : '',
     ];
 
-    $body = '<p>unraid-certbot 本地调试首页，所有读写均在沙箱内。</p>';
+    $body = '<p>unraid-certbot 本地调试首页。</p>';
 
     $body .= '<h3>快捷入口</h3><ul>'
-           . '<li><a href="/Settings/UnraidCertbot">设置页（设置 → Unraid Certbot，配置 / 状态 / 历史 / 日志）</a></li>'
            . '<li><a href="/Settings/UnraidCertbot?tab=status">证书状态标签</a>'
            . '（<a href="/Settings/UnraidCertbot?tab=history">续期历史</a>'
            . ' / <a href="/Settings/UnraidCertbot?tab=log">运行日志</a>）</li>'

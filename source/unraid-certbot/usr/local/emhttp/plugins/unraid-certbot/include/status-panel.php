@@ -44,7 +44,7 @@ function cb_status_panel(array $st, string $cb): void
 
 <?php if ($st['bundle']): ?>
 <h3>WebGUI 正在使用的证书</h3>
-<table class="cb-table">
+<table class="cb-table cb-detail-table">
   <tr><th>文件</th><td><code><?=cb_e($st['bundle_path'])?></code></td></tr>
   <tr><th>最后写入</th><td><?=$st['bundle_mtime'] ? date('Y-m-d H:i:s', $st['bundle_mtime']) : '未知'?>
       &nbsp;<span class="grey-text">(<?=cb_e(cb_ago($st['bundle_mtime']))?>)</span></td></tr>
@@ -68,7 +68,7 @@ function cb_status_panel(array $st, string $cb): void
 
 <h3>certbot 源证书</h3>
 <?php if ($st['live']): ?>
-<table class="cb-table">
+<table class="cb-table cb-detail-table">
   <tr><th>文件</th><td><code><?=cb_e($st['live_path'])?></code></td></tr>
   <tr><th>颁发者</th><td><?=cb_e($st['live']['issuer'])?></td></tr>
   <tr><th>到期时间</th><td><?=date('Y-m-d H:i:s', $st['live']['to'])?>
@@ -80,7 +80,7 @@ function cb_status_panel(array $st, string $cb): void
 <?php endif; ?>
 
 <h3>运行环境</h3>
-<table class="cb-table">
+<table class="cb-table cb-detail-table">
   <tr><th>Docker 服务</th><td>
       <?php if ($st['docker_ok']): ?><span class="green-text">可用</span>
       <?php else: ?><span class="red-text">不可用（通常为阵列未启动）</span><?php endif; ?>

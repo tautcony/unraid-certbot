@@ -452,14 +452,11 @@ function cb_dev_chrome(array $head, string $body, array $ctx = []): string
     $themeForced = $themeParam !== null ? 'true' : 'false';
     $themeClass  = 'Theme--' . $theme;
     $themeUpper  = strtoupper($theme);
-    $helpOpen    = isset($_GET['help']) ? 'true' : 'false';
 
     $titleHtml  = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
     $rootHtml   = htmlspecialchars($devRoot, ENT_QUOTES, 'UTF-8');
     $sourceHtml = htmlspecialchars($source, ENT_QUOTES, 'UTF-8');
-    $hostHtml   = htmlspecialchars($host, ENT_QUOTES, 'UTF-8');
     $verHtml    = htmlspecialchars($version, ENT_QUOTES, 'UTF-8');
-    $uptimeHtml = htmlspecialchars($uptime, ENT_QUOTES, 'UTF-8');
     $nav        = cb_dev_nav($current);
     $logoPath   = CB_DEV_LOGO_PATH;
     $cbDevStyles = CB_DEV_STYLES; // heredoc 只展开变量，常量要先落地到变量
@@ -504,10 +501,6 @@ function cb_dev_chrome(array $head, string $body, array $ctx = []): string
     </a>
     <span class="version"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd"/></svg>{$verHtml}</span>
   </div>
-  <div class="block">
-    <span class="text-left">服务器<br>描述<br>版本<br>运行时间</span>
-    <span class="text-right">{$hostHtml}<br>unraid-certbot 本地调试<br>{$verHtml}<br>{$uptimeHtml}</span>
-  </div>
 </div>
 
 <div id="menu">
@@ -515,7 +508,6 @@ function cb_dev_chrome(array $head, string $body, array $ctx = []): string
   <div class="nav-tile right">
     <div class="nav-item"><a href="/" title="沙箱信息">信息</a></div>
     <div class="nav-item"><a href="/Settings/UnraidCertbot?tab=log" title="运行日志">日志</a></div>
-    <div class="nav-item"><a href="#" onclick="cbToggleHelp();return false;" title="展开/收起所有说明文字">帮助</a></div>
   </div>
 </div>
 
@@ -532,14 +524,12 @@ function cb_dev_chrome(array $head, string $body, array $ctx = []): string
 <footer id="footer">
   <div class="footer-left">
     <span class="green strong">Array Started</span>
-    <span class="grey-text">（沙箱）</span>
   </div>
   <div class="footer-spacer"></div>
   <div class="footer-right">
     <span class="cb-theme-switch">主题
       <button type="button" onclick="cbToggleTheme()" id="cb-theme-label">{$themeUpper}</button>
     </span>
-    <span>Unraid&reg; webGui 本地预览</span>
   </div>
 </footer>
 
@@ -575,15 +565,6 @@ function cbToggleTheme() {
   if (lbl) lbl.textContent = next.toUpperCase();
 }
 
-function cbHelpBlocks() {
-  return Array.prototype.slice.call(document.querySelectorAll('blockquote.inline_help'));
-}
-function cbToggleHelp() {
-  var blocks = cbHelpBlocks();
-  var anyOpen = blocks.some(function (b) { return b.style.display === 'block'; });
-  blocks.forEach(function (b) { b.style.display = anyOpen ? '' : 'block'; });
-}
-
 function openBox(url, title, w, h) {
   cbDevCloseBox();
   var ov = document.createElement('div');
@@ -614,8 +595,6 @@ function cbUpdateDone(ok, msg) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-  if ({$helpOpen}) cbToggleHelp();
-
   // 真机上「应用」按钮有改动才启用
   function enableApply(form) {
     if (!form) return;

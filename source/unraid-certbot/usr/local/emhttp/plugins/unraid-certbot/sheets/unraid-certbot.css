@@ -54,6 +54,20 @@
   color: var(--alt-text-color, #909090);
   font-weight: normal;
 }
+.cb-detail-table {
+  table-layout: fixed;
+}
+.cb-detail-table th {
+  width: 35%;
+  min-width: 12rem;
+  white-space: nowrap;
+}
+.cb-detail-table td,
+.cb-detail-table td code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
 
 /* ---------- 标记与日志 ---------- */
 .cb-badge {
