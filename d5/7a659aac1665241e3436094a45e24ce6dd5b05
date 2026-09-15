@@ -1,0 +1,27 @@
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/sheets/unraid-certbot.css
+  s_baecea588cc5f4::t_310022fcdbc2b4 57-61,64-70
+  s_baecea588cc5f4::t_1ca2f8e182db4c 62-63
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status-panel.php
+  s_baecea588cc5f4::t_310022fcdbc2b4 47,71,83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d57a659aac1665241e3436094a45e24ce6dd5b05",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  },
+  "sessions": {
+    "s_baecea588cc5f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a526-1a4f-7260-9ac3-d891fed8ecdc",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
