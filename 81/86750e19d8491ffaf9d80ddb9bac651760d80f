@@ -1,0 +1,80 @@
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/unraid-certbot.page
+  h_3705811fa4502c 125,178
+  h_3705811fa4502c 7,9,190
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/scripts/renew.sh
+  h_3705811fa4502c 381
+  s_b0a7a204e5ce2e::t_17c38b08d8e4ce 264
+  h_3705811fa4502c 378,380
+README.md
+  s_b0a7a204e5ce2e::t_255accfab01779 33
+  s_b0a7a204e5ce2e::t_b32d8c416e0437 45
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status.php
+  s_b0a7a204e5ce2e::t_d86eb24cce8015 376
+  h_3705811fa4502c 338,341
+  h_3705811fa4502c 337,488
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/update.php
+  s_42f832a73bb235::t_04db89c37e1417 218-220
+  s_b0a7a204e5ce2e::t_9dd332bd878dbe 119
+  h_3705811fa4502c 204-206,208,211
+  s_42f832a73bb235::t_b586f8bfab88fa 209-210,212-217,221-222
+  h_3705811fa4502c 6,90,150
+unraid-certbot.plg
+  s_b0a7a204e5ce2e::t_e5f0ab7e58965e 26
+  s_b0a7a204e5ce2e::t_74b4caeae84436 63-77
+  h_3705811fa4502c 5,22
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/sheets/unraid-certbot.css
+  h_3705811fa4502c 9,19-20,88,102,115-118
+  s_42f832a73bb235::t_bef0bca6619687 43,45,56,64,68,72,90,93,97,100,103-110,112-114,121
+  s_42f832a73bb235::t_c087c889b4fc9e 42
+  s_42f832a73bb235::t_5d725552cb6ad3 44
+  s_42f832a73bb235::t_3f3e6e41005b03 53-55
+  s_42f832a73bb235::t_3a8944d4d17fc0 61-63
+  s_42f832a73bb235::t_e5323258203d41 65-67
+  s_42f832a73bb235::t_87e094896541e8 69-71
+  s_42f832a73bb235::t_1b6842ee0cb8cc 91-92
+  s_42f832a73bb235::t_eb30891ecd748e 94-96
+  s_42f832a73bb235::t_d80049db1104c9 98-99
+  s_42f832a73bb235::t_44de01c5bc26b9 111
+  s_42f832a73bb235::t_48e1516bc1e437 59-60,89,101,119-120
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status-panel.php
+  h_3705811fa4502c 26
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/config-form.php
+  s_b0a7a204e5ce2e::t_ee8c6c2dad8635 78
+  h_3705811fa4502c 18,98,100
+  s_42f832a73bb235::t_b586f8bfab88fa 96
+dev/seed.sh
+  s_b0a7a204e5ce2e::t_4ece403146ca90 79
+  s_b0a7a204e5ce2e::t_5dfc88813d9278 18
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/default.cfg
+  s_b0a7a204e5ce2e::t_63cd4af51d5a19 7
+  h_3705811fa4502c 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8186750e19d8491ffaf9d80ddb9bac651760d80f",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  },
+  "sessions": {
+    "s_42f832a73bb235": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a509-8624-70f3-947a-e309df81d1f2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    },
+    "s_b0a7a204e5ce2e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9406db1f-30b3-45ec-8a9d-e3e9c1028ade",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
