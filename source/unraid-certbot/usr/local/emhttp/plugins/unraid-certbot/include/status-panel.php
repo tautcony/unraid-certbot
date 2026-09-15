@@ -23,7 +23,7 @@ function cb_status_panel(array $st, string $cb): void
 <span class="grey-text">
   <?=_('当前目录')?>：<code><?=cb_e((string)$st['cert_dir'])?></code>
   <?php if (!empty($st['fs_summary'])): ?>（<?=cb_e((string)$st['fs_summary'])?>）<?php endif; ?>
-  <?=_('请到「设置」改用 /mnt/user/appdata/letsencrypt（需先启动阵列）。')?>
+  <?=_('请到「设置」改用 /mnt/user/appdata/letsencrypt。')?>
 </span>
 </blockquote>
 <?php endif; ?>

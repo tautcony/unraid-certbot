@@ -30,9 +30,8 @@ plugin install https://raw.githubusercontent.com/tautcony/unraid-certbot/master/
 | Unraid 主机名 | 必须与 Unraid 服务器名称一致，否则 webGUI 不会加载新证书 |
 | 域名列表 | 逗号或换行分隔；第一个为主域名；支持通配符（如 `*.example.com`） |
 | DNS 传播等待秒数 | DNS 记录创建后的等待时间，默认 60 秒 |
-| 证书存储目录 | 推荐 `/mnt/user/appdata/letsencrypt`（需先启动阵列），必须位于支持符号链接的文件系统，FAT/exFAT 会导致续期失败 |
+| 证书存储目录 | 默认 `/mnt/user/appdata/letsencrypt`，必须位于支持符号链接的文件系统，FAT/exFAT 会导致续期失败 |
 | 自动续期频率 | 检查频率，默认每天；证书到期前 30 天内才实际续期 |
-| 阵列启动后自动检查 | 阵列启动后延迟检查一次，默认关闭 |
 | 更新后重启 nginx | 证书变化后重启 webGUI 服务，默认开启 |
 | 测试环境 | 使用 Let's Encrypt Staging 环境，签发的证书不受浏览器信任 |
 
@@ -43,7 +42,7 @@ plugin install https://raw.githubusercontent.com/tautcony/unraid-certbot/master/
 | 路径 | 内容 |
 |---|---|
 | `/boot/config/plugins/unraid-certbot/` | 配置、Token、续期历史、日志、定时任务 |
-| `/mnt/user/appdata/letsencrypt/`（推荐） | certbot 账号、证书与续期配置 |
+| `/mnt/user/appdata/letsencrypt/`（默认） | certbot 账号、证书与续期配置 |
 | `/boot/config/ssl/certs/<主机名>_unraid_bundle.pem` | webGUI 使用的证书 |
 
 ## 排障

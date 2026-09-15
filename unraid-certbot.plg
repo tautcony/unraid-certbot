@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "unraid-certbot">
 <!ENTITY author    "tautcony">
-<!ENTITY version   "2026.09.12">
+<!ENTITY version   "2026.09.15">
 <!ENTITY launch    "Settings/UnraidCertbot">
 <!ENTITY github    "tautcony/unraid-certbot">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/master/&name;.plg">
@@ -19,10 +19,11 @@
         project="https://github.com/&github;">
 
 <CHANGES>
-###2026.09.12
+###2026.09.15
 - 修正日志数据刷新
 - 修复设置表单布局异常
 - 新增证书目录文件系统检查
+- 默认证书目录改为 /mnt/user/appdata/letsencrypt
 ###2026.09.11
 - 修正入口结构：设置 → 网络服务 → Unraid Certbot
 ###2026.09.10
@@ -59,8 +60,21 @@ printf '%s\n' "&version;" > "$MARKER" 2>/dev/null
 
 chmod 0755 "$P"/scripts/*.sh "$P"/event/* 2>/dev/null
 chmod 0644 "$P"/*.page "$P"/default.cfg 2>/dev/null
-mkdir -p /boot/config/letsencrypt
-chmod 700 /boot/config/letsencrypt 2>/dev/null
+
+# 证书目录默认在 /mnt/user/appdata 下，只有阵列启动后才存在。
+# 阵列已启动则此时建好，未启动则跳过 —— 首次续期时 renew.sh 会再建一次。
+CERT_DIR=/mnt/user/appdata/letsencrypt
+if grep -q '^shfs /mnt/user ' /proc/mounts 2>/dev/null; then
+  if mkdir -p "$CERT_DIR" 2>/dev/null; then
+    chmod 700 "$CERT_DIR" 2>/dev/null
+    echo "证书目录已就绪：$CERT_DIR"
+  else
+    echo "警告：无法创建 $CERT_DIR，请检查阵列与共享设置"
+  fi
+else
+  echo "提示：阵列未启动，暂未创建 $CERT_DIR（启动阵列后首次续期会自动创建）"
+fi
+
 [ -f /boot/config/plugins/&name;/cloudflare.ini ] &amp;&amp; chmod 600 /boot/config/plugins/&name;/cloudflare.ini
 /usr/local/sbin/update_cron 2>/dev/null
 

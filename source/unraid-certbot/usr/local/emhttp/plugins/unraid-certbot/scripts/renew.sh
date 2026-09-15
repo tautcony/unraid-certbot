@@ -163,7 +163,6 @@ audit_cert_dir() {
   else
     rm -f "$probe"
     echo "符号链接    : 不支持（续期会失败）"
-    echo "              请改用 /mnt/user/appdata/letsencrypt（需先启动阵列）。"
   fi
 
   local archive="${CERT_DIR}/archive" live="${CERT_DIR}/live"
@@ -262,7 +261,7 @@ load_cfg
 : "${UNRAID_HOSTNAME:=}"
 : "${DOMAINS:=}"
 : "${PROPAGATION:=60}"
-: "${CERT_DIR:=/boot/config/letsencrypt}"
+: "${CERT_DIR:=/mnt/user/appdata/letsencrypt}"
 : "${SCHEDULE:=daily}"
 : "${RESTART_NGINX:=yes}"
 : "${STAGING:=no}"
@@ -376,21 +375,15 @@ mkdir -p "$CERT_DIR" || fail 1 "无法创建证书目录 ${CERT_DIR}"
 chmod 700 "$CERT_DIR" 2>/dev/null
 
 # certbot 在 /etc/letsencrypt 下创建符号链接（archive -> live）。
-# 底层文件系统不支持符号链接时仅报 EPERM，此处提前探测并给出明确结论。
-# 已知的 FAT 系列直接指明，提示更具体；其余通过下面的实测回退。
+# 底层文件系统不支持符号链接时仅报 EPERM。
 case "$(echo "$(cb_fstype "$CERT_DIR")" | tr 'A-Z' 'a-z')" in
-  vfat|msdos|exfat|fat|fat32|ntfs|ntfs3)
-    fail 2 "证书目录位于 $(cb_fstype "$CERT_DIR") 文件系统，不支持符号链接，请改用 /mnt/user/appdata/letsencrypt（需先启动阵列）"
+  vfat|msdos|exfat|fat|fat32)
+    fail 2 "证书目录位于 $(cb_fstype "$CERT_DIR") 文件系统，不支持符号链接，请调整路径"
     ;;
 esac
 if [ ! -w "$CERT_DIR" ]; then
   fail 2 "证书目录不可写，请检查权限（root:root 700）"
 fi
-if ! ln -s "$CERT_DIR" "${CERT_DIR}/.cb-probe-$$" 2>/dev/null; then
-  rm -f "${CERT_DIR}/.cb-probe-$$"
-  fail 2 "证书目录所在文件系统不支持符号链接，请改用 /mnt/user/appdata/letsencrypt"
-fi
-rm -f "${CERT_DIR}/.cb-probe-$$"
 
 # ---------------------------------------------------------------------------
 # 运行 certbot

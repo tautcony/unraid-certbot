@@ -1,8 +1,6 @@
 <?php
 /**
  * unraid-certbot - 设置表单
- *
- * 提交后由 Unraid 的 /update.php 调用 include/update.php 校验并写入配置。
  */
 
 /**
@@ -17,7 +15,7 @@ function cb_form(array $cfg, array $fail = []): void
 <?php if ($fail): ?>
 <blockquote class="inline_help" style="display:block">
 <b><?=_('待配置项')?>：<?=cb_e(implode('、', $fail))?></b><br>
-<?=_('填写后点击「应用」。首次使用建议先启用「测试环境」验证流程。')?>
+<?=_('填写后点击「应用」。')?>
 </blockquote>
 <?php endif; ?>
 
@@ -77,7 +75,7 @@ function cb_form(array $cfg, array $fail = []): void
   <dd>
     <input type="text" name="CERT_DIR" value="<?=cb_e($cfg['CERT_DIR'])?>">
     <blockquote class="inline_help">
-      <?=_('certbot 账号、证书与续期配置的存储位置，推荐 /mnt/user/appdata/letsencrypt（需先启动阵列）。')?><br>
+      <?=_('certbot 账号、证书与续期配置的存储位置，默认 /mnt/user/appdata/letsencrypt。')?><br>
       <b><?=_('必须位于支持符号链接的文件系统')?></b><?=_('，FAT/exFAT 不支持，会导致续期失败。')?>
     </blockquote>
   </dd>
@@ -95,12 +93,11 @@ function cb_form(array $cfg, array $fail = []): void
     </blockquote>
   </dd>
 
-  <dt><?=_('阵列启动后自动检查')?></dt>
+  <dt><?=_('自动检查时间')?></dt>
   <dd>
-    <input type="hidden" name="RUN_AT_BOOT" value="no">
-    <label><input type="checkbox" name="RUN_AT_BOOT" value="yes"<?=cb_bool($cfg['RUN_AT_BOOT']) ? ' checked' : ''?>> <?=_('阵列启动完成后延迟 90 秒执行一次检查')?></label>
+    <input type="time" name="SCHEDULE_TIME" value="<?=cb_e($cfg['SCHEDULE_TIME'] ?? '01:14')?>" step="60">
     <blockquote class="inline_help">
-      <?=_('默认关闭。定时任务通常已足够。')?>
+      <?=_('按 Unraid 系统本地时间执行。默认每天凌晨 01:14；频率设为每周或每月时，也使用此时间。')?>
     </blockquote>
   </dd>
 

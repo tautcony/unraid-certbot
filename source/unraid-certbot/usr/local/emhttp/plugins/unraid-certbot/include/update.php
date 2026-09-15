@@ -2,11 +2,8 @@
 /**
  * unraid-certbot - 设置校验
  *
- * 由 /usr/local/emhttp/update.php 通过表单 #include 隐藏字段在「写入配置文件之前」执行。
- * 校验不通过时将 $save 置为 false 拒绝保存，并通过 addLog() 在界面显示原因。
- *
  * 除校验外，还负责两项配置写入之外的工作：
- *   1. 将 Cloudflare Token 写入独立的 600 权限凭据文件（不写入 .cfg）
+ *   1. 将 Cloudflare Token 写入独立的 600 权限凭据文件
  *   2. 按所选频率重建 cron 条目
  */
 
@@ -90,7 +87,7 @@ if ($email === '') {
 }
 
 // ---------------------------------------------------------------------------
-// Unraid 主机名（决定 bundle 文件名，必须与 Unraid 识别的名称一致）
+// Unraid 主机名
 // ---------------------------------------------------------------------------
 
 $host = trim((string)($_POST['UNRAID_HOSTNAME'] ?? ''));
@@ -119,7 +116,7 @@ if ($prop < 10 || $prop > 900) {
 
 $certDir = rtrim(trim((string)($_POST['CERT_DIR'] ?? '')), '/');
 if ($certDir === '') {
-    $certDir = '/boot/config/letsencrypt';
+    $certDir = '/mnt/user/appdata/letsencrypt';
 }
 if ($certDir[0] !== '/') {
     cb_error("证书目录必须是绝对路径，当前为：{$certDir}");
@@ -150,7 +147,7 @@ if ($certDir[0] !== '/') {
 // 复选框：未勾选时浏览器不提交该字段，因此界面放置同名的 hidden "no"
 // ---------------------------------------------------------------------------
 
-foreach (['RESTART_NGINX', 'STAGING', 'RUN_AT_BOOT'] as $flag) {
+foreach (['RESTART_NGINX', 'STAGING'] as $flag) {
     $_POST[$flag] = cb_bool($_POST[$flag] ?? 'no') ? 'yes' : 'no';
 }
 
@@ -204,13 +201,25 @@ if (cb_errors() === []) {
     $script    = "$cbPluginDir/scripts/renew.sh";
     $schedule  = (string)($_POST['SCHEDULE'] ?? 'daily');
     $scheduleMap = [
-        'daily'   => '17 3 * * *',
-        'weekly'  => '17 3 * * 0',
-        'monthly' => '17 3 1 * *',
+        'daily'   => '14 1 * * *',
+        'weekly'  => '14 1 * * 0',
+        'monthly' => '14 1 1 * *',
     ];
+    $scheduleTime = trim((string)($_POST['SCHEDULE_TIME'] ?? '01:14'));
+    if (!preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/', $scheduleTime)) {
+        cb_error('自动检查时间格式不正确，应为 HH:MM');
+        $scheduleTime = '01:14';
+    }
+    $_POST['SCHEDULE_TIME'] = $scheduleTime;
+    [$scheduleHour, $scheduleMinute] = array_map('intval', explode(':', $scheduleTime));
 
-    if (isset($scheduleMap[$schedule])) {
-        $text = $scheduleMap[$schedule] . " root {$script} --quiet --trigger=cron >/dev/null 2>&1\n";
+    if (cb_errors() === [] && isset($scheduleMap[$schedule])) {
+        $cronTime = sprintf('%d %d', $scheduleMinute, $scheduleHour);
+        // Unraid's update_cron places plugin entries in the root user's
+        // crontab, which uses the five-field user crontab format. Do not
+        // include a second user column here.
+        $text = preg_replace('/^\S+ \S+/', $cronTime, $scheduleMap[$schedule])
+            . " {$script} --quiet --trigger=cron >/dev/null 2>&1\n";
         parse_cron_cfg('unraid-certbot', 'renew', $text);
         cb_notice("自动续期已设置为每" . ['daily' => '天', 'weekly' => '周', 'monthly' => '月'][$schedule] . "检查一次");
     } else {
@@ -237,4 +246,3 @@ if (cb_errors() === []) {
 $cbResultMsg = $save ? '设置已保存' : '设置未保存';
 echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult('
    . ($save ? 'true' : 'false') . ',"' . $cbResultMsg . '");}</script>';
-

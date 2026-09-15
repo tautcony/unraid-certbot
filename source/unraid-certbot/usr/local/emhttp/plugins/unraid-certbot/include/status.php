@@ -334,11 +334,11 @@ function cb_fs_check(string $dir, bool $create = false): array
     if ($info['ro']) {
         return [false, "证书目录 {$dir} 所在文件系统为只读挂载", $info];
     }
-    if (in_array($fstype, ['vfat', 'msdos', 'exfat', 'fat', 'fat32', 'ntfs', 'ntfs3'], true)) {
-        return [false, "证书目录 {$dir} 位于 {$info['fstype']} 文件系统，不支持符号链接，请改用 /mnt/user/appdata/letsencrypt", $info];
+    if (in_array($fstype, ['vfat', 'msdos', 'exfat', 'fat', 'fat32'], true)) {
+        return [false, "证书目录 {$dir} 位于 {$info['fstype']} 文件系统，不支持符号链接，请调整路径", $info];
     }
     if ($info['symlink'] === false) {
-        return [false, "证书目录 {$dir} 所在文件系统不支持符号链接，请改用 /mnt/user/appdata/letsencrypt", $info];
+        return [false, "证书目录 {$dir} 所在文件系统不支持符号链接，请调整路径", $info];
     }
     if ($info['writable'] === false) {
         return [false, "证书目录 {$dir} 不可写，请检查权限（root:root 700）", $info];
@@ -373,7 +373,7 @@ function cb_status(array $cfg): array
     $domains = cb_parse_domains((string)($cfg['DOMAINS'] ?? ''));
     $primary = $domains[0] ?? '';
     $host    = trim((string)($cfg['UNRAID_HOSTNAME'] ?? ''));
-    $certDir = rtrim(trim((string)($cfg['CERT_DIR'] ?? '')), '/') ?: '/boot/config/letsencrypt';
+    $certDir = rtrim(trim((string)($cfg['CERT_DIR'] ?? '')), '/') ?: '/mnt/user/appdata/letsencrypt';
     // 配置中存储 Unraid 上的路径，本地调试时需映射至沙箱
     $certDir = cb_syspath($certDir);
     [$fsOk, $fsReason, $fsInfo] = cb_fs_check($certDir);
@@ -485,7 +485,7 @@ function cb_schedule_label(string $s): string
 }
 
 /**
- * Unraid 服务器名 —— 证书 bundle 的文件名必须与之一致。
+ * Unraid 服务器名
  * 优先读取 /var/local/emhttp/var.ini 的 NAME，失败时回退至系统 hostname。
  */
 function cb_unraid_name(): string
@@ -519,7 +519,6 @@ function cb_ago(?int $ts): string
     return '刚刚';
 }
 
-// 直接用 CLI 运行时打印一份摘要，方便排障。
 // 被其它脚本 require 时应先 define('CB_NO_CLI_OUTPUT', true)，避免污染它们的输出。
 if (PHP_SAPI === 'cli' && !defined('CB_NO_CLI_OUTPUT') && !defined('CB_STATUS_INCLUDED')) {
     $st = cb_status(cb_load_cfg());

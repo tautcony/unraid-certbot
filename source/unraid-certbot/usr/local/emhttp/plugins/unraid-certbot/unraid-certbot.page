@@ -4,15 +4,9 @@ Icon="certificate"
 ---
 <?php
 /**
- * Unraid Certbot：设置 → 网络服务 → Unraid Certbot（唯一入口）。
+ * Unraid Certbot：设置 → 网络服务 → Unraid Certbot。
  *
- * 整页四个标签，默认进入「证书状态」：
- *   - 证书状态：整体状态、WebGUI 与 certbot 证书、运行环境、续期/强制续期按钮
- *   - 设置：Token / 邮箱 / 主机名 / 域名 / 存储目录 / 续期频率（include/config-form.php）
- *   - 续期历史：history.tsv 最近若干条
- *   - 运行日志：certbot.log 末尾若干行
- *
- * 标签状态用 ?tab= 记录，刷新与收藏都能回到原标签。
+ * 标签状态用 ?tab= 记录。
  */
 $cb = 'unraid-certbot';
 require_once "$docroot/plugins/dynamix/include/Wrappers.php";
@@ -84,9 +78,6 @@ var cbTabKeys = <?=json_encode(array_keys($tabs), JSON_UNESCAPED_UNICODE)?>;
 var cbTabNow  = <?=json_encode($tab, JSON_UNESCAPED_UNICODE)?>;
 var cbDirty   = false;   // 「设置」标签中存在未保存的改动
 
-// 证书状态中的实时数据（最近一次运行、日志尾部）由服务端渲染，
-// 前端仅切换 display 无法获取新内容。因此切换标签走整页导航：
-// 服务端按新 tab 重新渲染，历史与日志为当前最新值。
 // 加 _ 参数以绕过浏览器缓存，导航后立即用 replaceState 移除。
 function cbTab(name) {
   if (name === cbTabNow) { return; }
@@ -101,8 +92,6 @@ function cbTab(name) {
   location.assign(url.toString());
 }
 
-// 真机外壳在表单改动时才启用「应用」；此处补充处理，
-// 保证直接深链到设置标签、或从其他标签切换回来均可保存。
 function cbEnableApply(form) {
   if (!form) return;
   Array.prototype.forEach.call(form.querySelectorAll('input[type=submit][disabled]'), function (b) {
@@ -133,7 +122,7 @@ function cbToggle(id, btn) {
   btn.value = show ? '<?=_('隐藏')?>' : '<?=_('显示')?>';
 }
 
-// 重取当前标签：历史/日志/配置均由服务端渲染，只有重新请求才能获取最新值
+// 重取当前标签
 function cbReload(saved) {
   var url = new URL(location.href);
   url.searchParams.set('tab', cbTabNow);
@@ -164,8 +153,6 @@ function cbRun(action) {
 }
 
 // 帮助说明：点击 dt 展开/收起对应 dd 内的 blockquote.inline_help。
-// Unraid 自带 JS 通过向后遍历兄弟节点查找 <dl>，但本插件的 blockquote
-// 嵌套在 <dd> 内（前面还有 input/label 等），无法到达 <dl>，因此此处自行绑定。
 function cbBindHelp() {
   var panes = document.querySelectorAll('#cb-pane-config dl');
   for (var d = 0; d < panes.length; d++) {
@@ -188,10 +175,7 @@ function cbBindHelp() {
 }
 cbBindHelp();
 
-// 保存结束后：显示结果，并重新请求页面。
-// 重取的原因与历史/日志相同 —— 本页面数据由服务端渲染，
-// 保存修改了配置（自动续期、证书目录等），不重取将一直显示旧值。
-// 函数名带 cb 前缀以避免与 Unraid 或主题中的同名函数冲突。
+// 保存结束后：显示结果。
 function cbSaveResult(ok, msg) {
   var panel = document.getElementById('cb-update-result');
   if (panel) {
@@ -203,9 +187,7 @@ function cbSaveResult(ok, msg) {
   cbReloadWhenSaved(true);
 }
 
-// 保存（表单 POST 至 progressFrame）完成后重取本页：
-// 配置已修改、历史/日志也写入新记录，只有重新请求才能看到最新值。
-// 等进度框加载完成再重取 —— 使用定时器估算时间会在提交尚未完成时就重定向页面。
+// 保存（表单 POST 至 progressFrame）完成后重取本页
 function cbReloadWhenSaved(saved) {
   var frame = document.getElementById('progressFrame');
   if (!frame || frame.dataset.cbWatching === '1') { return; }
