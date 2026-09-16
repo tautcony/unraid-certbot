@@ -10,112 +10,112 @@
 function cb_status_panel(array $st, string $cb): void
 {
     $health = [
-        'ok'      => ['green-text',  '证书正常'],
-        'soon'    => ['orange-text', '即将到期'],
-        'expired' => ['red-text',    '已过期'],
-        'unknown' => ['grey-text',   '尚未签发'],
+        'ok'      => ['green-text',  _('Certificate valid')],
+        'soon'    => ['orange-text', _('Expiring soon')],
+        'expired' => ['red-text',    _('Expired')],
+        'unknown' => ['grey-text',   _('Not issued')],
     ][$st['health']];
 ?>
 <?php if (empty($st['fs_ok'])): ?>
 <blockquote class="inline_help" style="display:block">
-<b><?=_('证书目录不可用，续期将失败')?></b><br>
+<b><?=_('Certificate directory is unavailable; renewal will fail')?></b><br>
 <?=cb_e((string)$st['fs_reason'])?><br>
 <span class="grey-text">
-  <?=_('当前目录')?>：<code><?=cb_e((string)$st['cert_dir'])?></code>
+  <?=_('Current directory')?>: <code><?=cb_e((string)$st['cert_dir'])?></code>
   <?php if (!empty($st['fs_summary'])): ?>（<?=cb_e((string)$st['fs_summary'])?>）<?php endif; ?>
-  <?=_('请到「设置」改用 /mnt/user/appdata/letsencrypt。')?>
+  <?=_('Change it to /mnt/user/appdata/letsencrypt in Settings.')?>
 </span>
 </blockquote>
 <?php endif; ?>
 
 <div class="cb-actions" style="margin-bottom:1rem">
-  <input type="button" value="<?=_('立即检查并续期')?>" onclick="cbRun('renew')">
-  <input type="button" value="<?=_('强制续期')?>" onclick="cbRun('force')">
-  <input type="button" value="<?=_('检查 Docker 环境')?>" onclick="cbRun('docker')">
+  <input type="button" value="<?=_('Check and renew now')?>" onclick="cbRun('renew')">
+  <input type="button" value="<?=_('Force renewal')?>" onclick="cbRun('force')">
+  <input type="button" value="<?=_('Check Docker environment')?>" onclick="cbRun('docker')">
 </div>
 
 <p>
-  整体状态：<span class="<?=$health[0]?>"><b><?=$health[1]?></b></span>
-  &nbsp;·&nbsp; 剩余有效期：<?=cb_days_html($st['days'])?>
+  <?=_('Overall status')?>: <span class="<?=$health[0]?>"><b><?=$health[1]?></b></span>
+  &nbsp;·&nbsp; <?=_('Days remaining')?>: <?=cb_days_html($st['days'])?>
   <?php if ($st['staging']): ?>
-    &nbsp;·&nbsp; <span class="orange-text"><b>当前配置为测试环境，证书不被信任</b></span>
+    &nbsp;·&nbsp; <span class="orange-text"><b><?=_('Staging is enabled; the certificate is not trusted')?></b></span>
   <?php endif; ?>
 </p>
 
 <?php if ($st['bundle']): ?>
-<h3>WebGUI 正在使用的证书</h3>
+<h3><?=_('Certificate used by the webGUI')?></h3>
 <table class="cb-table cb-detail-table">
-  <tr><th>文件</th><td><code><?=cb_e($st['bundle_path'])?></code></td></tr>
-  <tr><th>最后写入</th><td><?=$st['bundle_mtime'] ? date('Y-m-d H:i:s', $st['bundle_mtime']) : '未知'?>
+  <tr><th><?=_('File')?></th><td><code><?=cb_e($st['bundle_path'])?></code></td></tr>
+  <tr><th><?=_('Last written')?></th><td><?=$st['bundle_mtime'] ? date('Y-m-d H:i:s', $st['bundle_mtime']) : _('Unknown')?>
       &nbsp;<span class="grey-text">(<?=cb_e(cb_ago($st['bundle_mtime']))?>)</span></td></tr>
-  <tr><th>主体 (CN)</th><td><?=cb_e($st['bundle']['subject'])?></td></tr>
-  <tr><th>颁发者</th><td><?=cb_e($st['bundle']['issuer'])?></td></tr>
-  <tr><th>生效时间</th><td><?=date('Y-m-d H:i:s', $st['bundle']['from'])?></td></tr>
-  <tr><th>到期时间</th><td><?=date('Y-m-d H:i:s', $st['bundle']['to'])?>
+  <tr><th><?=_('Subject (CN)')?></th><td><?=cb_e($st['bundle']['subject'])?></td></tr>
+  <tr><th><?=_('Issuer')?></th><td><?=cb_e($st['bundle']['issuer'])?></td></tr>
+  <tr><th><?=_('Valid from')?></th><td><?=date('Y-m-d H:i:s', $st['bundle']['from'])?></td></tr>
+  <tr><th><?=_('Expires')?></th><td><?=date('Y-m-d H:i:s', $st['bundle']['to'])?>
       &nbsp;(<?=cb_days_html($st['bundle']['days'])?>)</td></tr>
-  <tr><th>覆盖域名</th><td><?=cb_e(implode(', ', $st['bundle']['sans']))?></td></tr>
+  <tr><th><?=_('Covered domains')?></th><td><?=cb_e(implode(', ', $st['bundle']['sans']))?></td></tr>
 </table>
 <?php else: ?>
 <blockquote class="inline_help" style="display:block">
-<b>尚未签发证书。</b>
+<b><?=_('No certificate has been issued.')?></b>
 <?php if (!$st['bundle_path']): ?>
-先在 <a href="/Settings/UnraidCertbot?tab=config">设置</a> 里填写 Unraid 主机名。
+<?=_('Enter the Unraid hostname in')?> <a href="/Settings/UnraidCertbot?tab=config"><?=_('Settings')?></a>.
 <?php else: ?>
-执行「立即检查并续期」以签发证书。
+<?=_('Run Check and renew now to issue a certificate.')?>
 <?php endif; ?>
 </blockquote>
 <?php endif; ?>
 
-<h3>certbot 源证书</h3>
+<h3><?=_('Source certificate from certbot')?></h3>
 <?php if ($st['live']): ?>
 <table class="cb-table cb-detail-table">
-  <tr><th>文件</th><td><code><?=cb_e($st['live_path'])?></code></td></tr>
-  <tr><th>颁发者</th><td><?=cb_e($st['live']['issuer'])?></td></tr>
-  <tr><th>到期时间</th><td><?=date('Y-m-d H:i:s', $st['live']['to'])?>
+  <tr><th><?=_('File')?></th><td><code><?=cb_e($st['live_path'])?></code></td></tr>
+  <tr><th><?=_('Issuer')?></th><td><?=cb_e($st['live']['issuer'])?></td></tr>
+  <tr><th><?=_('Expires')?></th><td><?=date('Y-m-d H:i:s', $st['live']['to'])?>
       &nbsp;(<?=cb_days_html($st['live']['days'])?>)</td></tr>
-  <tr><th>覆盖域名</th><td><?=cb_e(implode(', ', $st['live']['sans']))?></td></tr>
+  <tr><th><?=_('Covered domains')?></th><td><?=cb_e(implode(', ', $st['live']['sans']))?></td></tr>
 </table>
 <?php else: ?>
-<blockquote class="inline_help">尚未签发。</blockquote>
+<blockquote class="inline_help"><?=_('Not issued.')?></blockquote>
 <?php endif; ?>
 
-<h3>运行环境</h3>
+<h3><?=_('Runtime environment')?></h3>
 <table class="cb-table cb-detail-table">
-  <tr><th>Docker 服务</th><td>
-      <?php if ($st['docker_ok']): ?><span class="green-text">可用</span>
-      <?php else: ?><span class="red-text">不可用（通常为阵列未启动）</span><?php endif; ?>
+  <tr><th><?=_('Docker service')?></th><td>
+      <?php if ($st['docker_ok']): ?><span class="green-text"><?=_('Available')?></span>
+      <?php else: ?><span class="red-text"><?=_('Unavailable (usually because the array is stopped)')?></span><?php endif; ?>
   </td></tr>
-  <tr><th>certbot 镜像</th><td>
-      <?php if ($st['image_ok']): ?><span class="green-text">已存在</span>
-      <?php else: ?><span class="grey-text">未拉取（首次运行时自动拉取）</span><?php endif; ?>
+  <tr><th><?=_('certbot image')?></th><td>
+      <?php if ($st['image_ok']): ?><span class="green-text"><?=_('Present')?></span>
+      <?php else: ?><span class="grey-text"><?=_('Not pulled (automatically pulled on first run)')?></span><?php endif; ?>
   </td></tr>
-  <tr><th>证书目录</th><td>
+  <tr><th><?=_('Certificate directory')?></th><td>
       <code><?=cb_e($st['cert_dir'])?></code>
       <?php if (empty($st['fs_ok'])): ?>
-        <br><span class="red-text"><?=_('该目录不可用')?>：<?=cb_e((string)$st['fs_reason'])?></span>
+        <br><span class="red-text"><?=_('This directory is unavailable')?>: <?=cb_e((string)$st['fs_reason'])?></span>
       <?php elseif (!empty($st['fs_summary'])): ?>
         <br><span class="grey-text"><?=cb_e((string)$st['fs_summary'])?></span>
       <?php endif; ?>
   </td></tr>
-  <tr><th>DNS 传播等待</th><td><?=$st['propagation']?> 秒</td></tr>
-  <tr><th>自动续期</th><td><?=cb_e(cb_schedule_label($st['schedule']))?></td></tr>
-  <tr><th>重启 nginx</th><td><?=$st['restart_nginx'] ? '是' : '否'?></td></tr>
-  <tr><th>上次运行</th><td>
+  <tr><th><?=_('DNS propagation wait')?></th><td><?=$st['propagation']?> <?=_('seconds')?></td></tr>
+  <tr><th><?=_('Automatic renewal')?></th><td><?=cb_e(cb_schedule_label($st['schedule']))?></td></tr>
+  <tr><th><?=_('Restart nginx')?></th><td><?=$st['restart_nginx'] ? _('Yes') : _('No')?></td></tr>
+  <tr><th><?=_('Last run')?></th><td>
       <?php if ($st['last_run']): ?>
         <?=cb_e($st['last_run']['time'])?>
         （<?=cb_e(cb_trigger_label($st['last_run']['trigger']))?>）
-        <?php if ($st['last_run']['result'] === '成功'): ?>
-          <span class="cb-badge cb-ok">成功</span>
+        <?php if (in_array($st['last_run']['result'], ['success', '成功'], true)): ?>
+          <span class="cb-badge cb-ok"><?=_('Success')?></span>
         <?php else: ?>
-          <span class="cb-badge cb-fail">失败</span>
+          <span class="cb-badge cb-fail"><?=_('Failed')?></span>
         <?php endif; ?>
         <?=cb_e($st['last_run']['message'])?>
       <?php else: ?>
-        <span class="grey-text">无记录</span>
+        <span class="grey-text"><?=_('No records')?></span>
       <?php endif; ?>
   </td></tr>
-  <tr><th>上次成功续期</th><td>
-      <?= $st['last_ok'] ? cb_e($st['last_ok']['time']) . ' (' . cb_e(cb_ago(strtotime($st['last_ok']['time']) ?: null)) . ')' : '<span class="grey-text">无记录</span>' ?>
+  <tr><th><?=_('Last successful renewal')?></th><td>
+      <?= $st['last_ok'] ? cb_e($st['last_ok']['time']) . ' (' . cb_e(cb_ago(strtotime($st['last_ok']['time']) ?: null)) . ')' : '<span class="grey-text">' . _('No records') . '</span>' ?>
   </td></tr>
 </table>
 <?php

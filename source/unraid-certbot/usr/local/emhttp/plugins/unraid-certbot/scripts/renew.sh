@@ -209,7 +209,7 @@ certbot_reason() {
 fail() {
   # $1=退出码 $2=消息
   log "❌ $2"
-  record_history "失败" "${DOMAINS:-}" "$2"
+  record_history "failed" "${DOMAINS:-}" "$2"
   exit "$1"
 }
 
@@ -463,7 +463,7 @@ chmod 600 "$TEMP_BUNDLE"
 if [ -f "$OUTPUT_FILE" ] && cmp -s "$TEMP_BUNDLE" "$OUTPUT_FILE"; then
   rm -f "$TEMP_BUNDLE"
   log "证书内容未变化，跳过写入与重启"
-  record_history "成功" "${DOMAIN_ARRAY[*]}" "证书未变化，无需更新"
+  record_history "success" "${DOMAIN_ARRAY[*]}" "Certificate unchanged; no update needed"
   exit 0
 fi
 
@@ -494,5 +494,5 @@ fi
 
 EXPIRY=$(openssl x509 -noout -enddate -in "$OUTPUT_FILE" 2>/dev/null | cut -d= -f2)
 log "✅ 完成，证书到期时间：${EXPIRY:-未知}"
-record_history "成功" "${DOMAIN_ARRAY[*]}" "证书已更新，到期时间 ${EXPIRY:-未知}"
+record_history "success" "${DOMAIN_ARRAY[*]}" "Certificate updated; expires ${EXPIRY:-unknown}"
 exit 0

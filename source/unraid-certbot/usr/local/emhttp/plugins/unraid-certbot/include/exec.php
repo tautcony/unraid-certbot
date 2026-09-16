@@ -28,16 +28,16 @@ header('Content-Type: text/html; charset=utf-8');
  * 命令固定为 renew.sh，参数均为预设常量。
  */
 $actions = [
-    'renew'  => [['--trigger=webgui'],                 '立即检查并续期'],
-    'force'  => [['--force', '--trigger=webgui'],      '强制续期'],
-    'status' => [['--status'],                         '查看当前状态'],
-    'docker' => [[],                                   '检查 Docker 环境'],
+    'renew'  => [['--trigger=webgui'],                 _('Check and renew now')],
+    'force'  => [['--force', '--trigger=webgui'],      _('Force renewal')],
+    'status' => [['--status'],                         _('View current status')],
+    'docker' => [[],                                   _('Check Docker environment')],
 ];
 
 $action = (string)($_GET['action'] ?? $_POST['action'] ?? 'renew');
 if (!isset($actions[$action])) {
     http_response_code(400);
-    echo '<p style="color:#c33;font-family:sans-serif">不支持的操作：' . htmlspecialchars($action) . '</p>';
+    echo '<p style="color:#c33;font-family:sans-serif">' . _('Unsupported action') . ': ' . htmlspecialchars($action) . '</p>';
     exit;
 }
 
@@ -144,9 +144,9 @@ if ($rc === 0) {
     write_log("=== 结束，退出码 {$rc} ===");
     $hints = [
         1 => '配置有误，请检查设置页。',
-        2 => 'certbot 执行失败。常见原因：Token 权限不足（需 Zone → DNS → Edit）、域名不在该 Cloudflare 账号下。',
-        3 => '已有续期正在执行，请稍后再试。',
-        4 => 'Docker 服务不可用，通常是阵列未启动。',
+        2 => 'certbot failed. Common causes: insufficient token permissions (Zone > DNS > Edit) or a domain outside the authorized Cloudflare account.',
+        3 => 'A renewal is already running. Try again later.',
+        4 => 'Docker is unavailable, usually because the array is stopped.',
     ];
     if (isset($hints[$rc])) {
         write_log('提示：' . $hints[$rc]);

@@ -276,7 +276,7 @@ function cb_fs_check(string $dir, bool $create = false): array
             while ($probe !== '' && $probe !== '/' && !is_dir($probe)) {
                 $probe = dirname($probe);
             }
-            return [true, '目录不存在，将在首次续期时创建', $info + ['probe' => $probe]];
+            return [true, 'Directory does not exist and will be created at the first renewal', $info + ['probe' => $probe]];
         }
     }
     $info['real'] = $real;
@@ -332,19 +332,19 @@ function cb_fs_check(string $dir, bool $create = false): array
 
     $fstype = strtolower($info['fstype']);
     if ($info['ro']) {
-        return [false, "证书目录 {$dir} 所在文件系统为只读挂载", $info];
+        return [false, "Certificate directory {$dir} is on a read-only filesystem", $info];
     }
     if (in_array($fstype, ['vfat', 'msdos', 'exfat', 'fat', 'fat32'], true)) {
-        return [false, "证书目录 {$dir} 位于 {$info['fstype']} 文件系统，不支持符号链接，请调整路径", $info];
+        return [false, "Certificate directory {$dir} is on {$info['fstype']}, which does not support symbolic links; choose another path", $info];
     }
     if ($info['symlink'] === false) {
-        return [false, "证书目录 {$dir} 所在文件系统不支持符号链接，请调整路径", $info];
+        return [false, "The filesystem containing {$dir} does not support symbolic links; choose another path", $info];
     }
     if ($info['writable'] === false) {
-        return [false, "证书目录 {$dir} 不可写，请检查权限（root:root 700）", $info];
+        return [false, "Certificate directory {$dir} is not writable; check permissions (root:root 700)", $info];
     }
 
-    return [true, '可用', $info];
+    return [true, 'Available', $info];
 }
 
 /**
@@ -354,13 +354,13 @@ function cb_fs_summary(array $info): string
 {
     $parts = [];
     if (!empty($info['fstype'])) {
-        $parts[] = '文件系统 ' . $info['fstype'];
+        $parts[] = _('Filesystem') . ' ' . $info['fstype'];
     }
     if (array_key_exists('symlink', $info) && $info['symlink'] !== null) {
-        $parts[] = $info['symlink'] ? '支持软链' : '不支持软链';
+        $parts[] = $info['symlink'] ? _('Symbolic links supported') : _('Symbolic links unsupported');
     }
     if (array_key_exists('writable', $info) && $info['writable'] !== null) {
-        $parts[] = $info['writable'] ? '可写' : '不可写';
+        $parts[] = $info['writable'] ? _('Writable') : _('Not writable');
     }
     return implode(' · ', $parts);
 }
@@ -389,7 +389,7 @@ function cb_status(array $cfg): array
     $lastRun  = $history[0] ?? null;
     $lastOk   = null;
     foreach ($history as $h) {
-        if (($h['result'] ?? '') === '成功') {
+        if (in_array(($h['result'] ?? ''), ['success', '成功'], true)) {
             $lastOk = $h;
             break;
         }
@@ -445,15 +445,15 @@ function cb_status(array $cfg): array
 function cb_days_html(?int $days): string
 {
     if ($days === null) {
-        return '<span class="grey-text">未知</span>';
+        return '<span class="grey-text">' . _('Unknown') . '</span>';
     }
     if ($days < 0) {
-        return '<span class="red-text"><b>已过期 ' . abs($days) . ' 天</b></span>';
+        return '<span class="red-text"><b>' . _('Expired') . ' ' . abs($days) . ' ' . _('days ago') . '</b></span>';
     }
     if ($days <= 14) {
-        return '<span class="orange-text"><b>' . $days . ' 天</b></span>';
+        return '<span class="orange-text"><b>' . $days . ' ' . _('days') . '</b></span>';
     }
-    return '<span class="green-text">' . $days . ' 天</span>';
+    return '<span class="green-text">' . $days . ' ' . _('days') . '</span>';
 }
 
 /** 转义输出 */
@@ -466,10 +466,10 @@ function cb_e($s): string
 function cb_trigger_label(string $t): string
 {
     return [
-        'manual' => '手动',
-        'webgui' => '界面按钮',
-        'cron'   => '定时任务',
-        'boot'   => '开机',
+        'manual' => _('Manual'),
+        'webgui' => _('webGUI button'),
+        'cron'   => _('Scheduled task'),
+        'boot'   => _('System startup'),
     ][$t] ?? $t;
 }
 
@@ -477,10 +477,10 @@ function cb_trigger_label(string $t): string
 function cb_schedule_label(string $s): string
 {
     return [
-        'daily'   => '每天检查一次',
-        'weekly'  => '每周检查一次',
-        'monthly' => '每月检查一次',
-        'off'     => '已关闭',
+        'daily'   => _('Check daily'),
+        'weekly'  => _('Check weekly'),
+        'monthly' => _('Check monthly'),
+        'off'     => _('Disabled'),
     ][$s] ?? $s;
 }
 
@@ -505,18 +505,18 @@ function cb_unraid_name(): string
 function cb_ago(?int $ts): string
 {
     if ($ts === null || $ts <= 0) {
-        return '未知';
+        return _('Unknown');
     }
     $diff = time() - $ts;
     if ($diff < 0) {
-        return '未来';
+        return _('In the future');
     }
-    foreach ([[31536000, '年'], [2592000, '个月'], [86400, '天'], [3600, '小时'], [60, '分钟']] as [$unit, $label]) {
+    foreach ([[31536000, _('year')], [2592000, _('month')], [86400, _('day')], [3600, _('hour')], [60, _('minute')]] as [$unit, $label]) {
         if ($diff >= $unit) {
-            return floor($diff / $unit) . " {$label}前";
+            return floor($diff / $unit) . " {$label} " . _('ago');
         }
     }
-    return '刚刚';
+    return _('Just now');
 }
 
 // 被其它脚本 require 时应先 define('CB_NO_CLI_OUTPUT', true)，避免污染它们的输出。

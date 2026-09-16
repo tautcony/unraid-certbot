@@ -19,10 +19,10 @@ $cfg = parse_plugin_cfg($cb);
 $st  = cb_status($cfg);
 
 $tabs = [
-    'status'  => '证书状态',
-    'config'  => '设置',
-    'history' => '续期历史',
-    'log'     => '运行日志',
+    'status'  => 'Certificate Status',
+    'config'  => 'Settings',
+    'history' => 'Renewal History',
+    'log'     => 'Run Log',
 ];
 $tab = (string)($_GET['tab'] ?? 'status');
 if (!isset($tabs[$tab])) {
@@ -32,9 +32,9 @@ if (!isset($tabs[$tab])) {
 // 缺配置时给出待办清单，避免用户遗漏必填项
 $missing = [];
 if (!$st['configured']['token'])   $missing[] = 'Cloudflare API Token';
-if (!$st['configured']['email'])   $missing[] = '邮箱';
-if (!$st['configured']['host'])    $missing[] = 'Unraid 主机名';
-if (!$st['configured']['domains']) $missing[] = '域名';
+if (!$st['configured']['email'])   $missing[] = _('Email');
+if (!$st['configured']['host'])    $missing[] = _('Unraid Hostname');
+if (!$st['configured']['domains']) $missing[] = _('Domains');
 
 $log = cb_log_tail(400);
 ?>
@@ -64,10 +64,10 @@ $log = cb_log_tail(400);
 <!-- ======================= 运行日志 ======================= -->
 <div id="cb-pane-log" class="cb-pane"<?=$tab === 'log' ? '' : ' style="display:none"'?>>
 <p class="grey-text" style="font-size:12px;margin-bottom:6px">
-  <code>/boot/config/plugins/<?=$cb?>/certbot.log</code>，显示最后 400 行，超过 1 MiB 时自动截断。
+  <?=_('Shows the last 400 lines of')?> <code>/boot/config/plugins/<?=$cb?>/certbot.log</code><?=_('. The log is truncated automatically when it exceeds 1 MiB.')?>
 </p>
 <?php if (trim($log) === ''): ?>
-<blockquote class="inline_help" style="display:block">暂无日志。</blockquote>
+<blockquote class="inline_help" style="display:block"><?=_('No log entries.')?></blockquote>
 <?php else: ?>
 <div class="cb-log"><?=cb_e($log)?></div>
 <?php endif; ?>
@@ -82,7 +82,7 @@ var cbDirty   = false;   // 「设置」标签中存在未保存的改动
 function cbTab(name) {
   if (name === cbTabNow) { return; }
   if (cbTabNow === 'config' && cbDirty) {
-    if (!window.confirm(<?=json_encode(_('有未保存的改动，确定离开？'), JSON_UNESCAPED_UNICODE)?>)) {
+    if (!window.confirm(<?=json_encode(_('You have unsaved changes. Leave this tab?'), JSON_UNESCAPED_UNICODE)?>)) {
       return;
     }
   }
@@ -119,7 +119,7 @@ function cbToggle(id, btn) {
   if (!el) return;
   var show = el.type === 'password';
   el.type = show ? 'text' : 'password';
-  btn.value = show ? '<?=_('隐藏')?>' : '<?=_('显示')?>';
+  btn.value = show ? '<?=_('Hide')?>' : '<?=_('Show')?>';
 }
 
 // 重取当前标签
@@ -136,7 +136,7 @@ function cbReload(saved) {
   try {
     var q = new URL(location.href).searchParams;
     if (!q.has('_saved')) { return; }
-    cbSaveResult(true, <?=json_encode(_('设置已保存'), JSON_UNESCAPED_UNICODE)?>);
+    cbSaveResult(true, <?=json_encode(_('Settings saved'), JSON_UNESCAPED_UNICODE)?>);
     q.delete('_saved');
     history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : ''));
   } catch (e) {}
@@ -145,9 +145,9 @@ function cbReload(saved) {
 // 续期类动作在对话框中执行，输出经 addLog
 function cbRun(action) {
   var titles = {
-    renew:  '<?=_('检查并续期')?>',
-    force:  '<?=_('强制续期')?>',
-    docker: '<?=_('Docker 环境检查')?>'
+    renew:  '<?=_('Check and renew')?>',
+    force:  '<?=_('Force renewal')?>',
+    docker: '<?=_('Check Docker environment')?>'
   };
   openBox('/plugins/<?=$cb?>/include/exec.php?action=' + action, titles[action] || action, 820, 560);
 }
@@ -180,7 +180,7 @@ function cbSaveResult(ok, msg) {
   var panel = document.getElementById('cb-update-result');
   if (panel) {
     panel.style.display = 'block';
-    panel.innerHTML = '<b>' + (msg || (ok ? '<?=_('设置已保存')?>' : '<?=_('设置未保存')?>')) + '</b>';
+    panel.innerHTML = '<b>' + (msg || (ok ? '<?=_('Settings saved')?>' : '<?=_('Settings not saved')?>')) + '</b>';
   }
   if (!ok) { return; }
   cbDirty = false;
@@ -196,7 +196,7 @@ function cbReloadWhenSaved(saved) {
     var doc = null;
     try { doc = frame.contentDocument; } catch (e) { return; }
     if (!doc || !doc.body) { return; }
-    if (!/设置已保存|保存成功/.test(doc.body.innerHTML)) { return; }  // 保存失败则不刷新
+    if (!/Settings saved|Save successful/.test(doc.body.innerHTML)) { return; }  // Do not reload after a failed save.
     frame.dataset.cbWatching = '';
     setTimeout(function () { cbReload(saved); }, 1200);   // 让提示短暂显示
   };
