@@ -1,0 +1,22 @@
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/scripts/renew.sh
+  s_1df220db1a6be4::t_f8fcb6f993eac6 119-120,124,131,175,191,204
+  s_1df220db1a6be4::t_f8a1b848b35e70 211,228,233,239,266,296,322,337,350,368,393,433,451
+  s_1df220db1a6be4::t_5ffc9a4f78e6d3 300-303
+  s_1df220db1a6be4::t_5f177ed5243dbd 3,5-6,10,21,51-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3ab2f621355e7a0db469a5a50bec0e2fe4209ddb",
+  "prompts": {},
+  "sessions": {
+    "s_1df220db1a6be4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0afbd-971f-7cf3-80a1-ee493eabce42",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
