@@ -1,0 +1,132 @@
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/config-keys.txt
+  s_55aceb992fb041::t_4bbd6046736003 10
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/unraid-certbot.page
+  s_55aceb992fb041::t_ae2fd295f45bf2 35-37,45,68,71,86,158,185-187,220
+  s_55aceb992fb041::t_c519d6e6d3389d 135,138,141-147,149
+  s_55aceb992fb041::t_a24df47330230b 92,100-104,165
+  s_55aceb992fb041::t_4c1290d83de588 176,216,224
+dev/seed.sh
+  s_55aceb992fb041::t_a122228c472099 102
+dev/lib/emhttp.php
+  s_55aceb992fb041::t_492a5b069895c8 413,422,510
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status.php
+  s_55aceb992fb041::t_2bf3f8b9016e47 153
+  s_55aceb992fb041::t_4bbd6046736003 139-141,143,151-152,154-165
+  s_55aceb992fb041::t_f44ab198ac53be 142,144-150
+  s_55aceb992fb041::t_ae2fd295f45bf2 429,432,435,520,523,526,528,541-544,552-555,580,584,586,588,591
+dev/server.php
+  s_55aceb992fb041::t_492a5b069895c8 8,205-207
+  s_55aceb992fb041::t_a122228c472099 6,45-49,75
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/default.cfg
+  s_55aceb992fb041::t_4bbd6046736003 12
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/exec.php
+  s_55aceb992fb041::t_ae2fd295f45bf2 31-34,40
+source/unraid-certbot/usr/local/emhttp/languages/zh_CN/unraid-certbot.txt
+  s_55aceb992fb041::t_f50c3948edc6ad 2
+  s_55aceb992fb041::t_bc30b71364039a 3-4,7-136
+  s_55aceb992fb041::t_41d4cf258b207f 137-138,140-149,151-158
+  s_55aceb992fb041::t_28628ddffe119d 139,150,159-161
+  s_55aceb992fb041::t_4bbd6046736003 5-6
+tools/republish-old.sh
+  s_55aceb992fb041::t_7bb94ecf6b1b60 6,9,17-20,23-25,29-30,35
+  s_55aceb992fb041::t_4de6d07b6c01ff 2,31-34,36-37
+  s_55aceb992fb041::t_0f19742e850579 26
+  s_55aceb992fb041::t_ca776b8b1c734e 27
+  s_55aceb992fb041::t_e20f68c7cb5743 1,3-5,7-8,10-16,21-22,28
+README.zh_CN.md
+  s_55aceb992fb041::t_fca8243ff2549c 88
+  s_55aceb992fb041::t_cb8261158a9a10 28
+  s_55aceb992fb041::t_7bb22920dbe310 80-83,90
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/history-panel.php
+  s_55aceb992fb041::t_ae2fd295f45bf2 13,32-36,44,46,54-55,59,62,66
+tools/README.md
+  s_55aceb992fb041::t_cb8261158a9a10 1-8,11
+  s_55aceb992fb041::t_0d492855e4a3bb 9-10,12
+tests/navigation.js
+  s_55aceb992fb041::t_269daa9cdd7274 1-25,27-39,41-43,45-47,49-54,56-59,61-64,66-68,81-83
+  s_55aceb992fb041::t_9d00ab36553531 26,40,44,69-80
+  s_55aceb992fb041::t_492a5b069895c8 48,55,60,65
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/sheets/unraid-certbot.css
+  s_55aceb992fb041::t_33a6097cbb142c 23,71-73
+  s_55aceb992fb041::t_fade79809cf562 74
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/config-form.php
+  s_55aceb992fb041::t_4bbd6046736003 25-33
+  s_55aceb992fb041::t_ae2fd295f45bf2 17-18,34,37-38,40,42-43,47,51,55,59,64,68-69,73,77,81,85-86,90,93-96,99,103,107,111,114,116,120,123,125-126,131
+dev.sh
+  s_55aceb992fb041::t_a122228c472099 131-132,137
+  s_55aceb992fb041::t_7799e5a6e61077 61-63,126-129,136
+tests/translations.php
+  s_55aceb992fb041::t_c519d6e6d3389d 21-30,44
+  s_55aceb992fb041::t_743aac74726d19 1-20,31-43,47-54,56-69
+  s_55aceb992fb041::t_2bf3f8b9016e47 55
+  s_55aceb992fb041::t_a5d4665d959427 45-46
+lint.sh
+  s_55aceb992fb041::t_7bb22920dbe310 20
+  s_55aceb992fb041::t_338ef4617878c0 46-47
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/update.php
+  s_55aceb992fb041::t_28628ddffe119d 117,210,282,297-298,310
+  s_55aceb992fb041::t_fe1e4b4372a329 110,112,118-120,132,136,140,151,153,164,166,177,193,207,227,229,231,237,241,248,255,275,312-315
+  s_55aceb992fb041::t_f44ab198ac53be 307-309
+  s_55aceb992fb041::t_4bbd6046736003 246-247,249-251
+tests/regression.sh
+  s_55aceb992fb041::t_4c09e048063e66 198,200-211,234-245
+  s_55aceb992fb041::t_197b9aef505b4b 199
+  s_55aceb992fb041::t_7bb22920dbe310 54
+  s_55aceb992fb041::t_a122228c472099 133
+  s_55aceb992fb041::t_492a5b069895c8 212-233,246
+  s_55aceb992fb041::t_269daa9cdd7274 158-160
+README.md
+  s_55aceb992fb041::t_cb8261158a9a10 28
+  s_55aceb992fb041::t_7bb22920dbe310 80-83,90
+  s_55aceb992fb041::t_fca8243ff2549c 88
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status-panel.php
+  s_55aceb992fb041::t_ae2fd295f45bf2 13-16,21,24,26,32-34,38-39,41,46,48-49,51-54,56,60,62,64,69,72-74,76,79,82,84-86,88-90,92,95,100-103,108,110,114,117-118
+dev/README.md
+  s_55aceb992fb041::t_7799e5a6e61077 4
+  s_55aceb992fb041::t_a122228c472099 9-10,18,47
+tools/build.sh
+  s_55aceb992fb041::t_8dbbfd2a4129cb 5-6,8,14,18,36,48-49,63-68,72,83-89,139,191-192
+  s_55aceb992fb041::t_ceb8a139f1325a 7,37-47,50-53,71,170
+dev/README.zh_CN.md
+  s_55aceb992fb041::t_7799e5a6e61077 4
+  s_55aceb992fb041::t_492a5b069895c8 9-10,18,47
+dev/emhttp/plugins/dynamix/include/Wrappers.php
+  s_55aceb992fb041::t_a122228c472099 22,25-67
+tests/build-reproducibility.sh
+  s_55aceb992fb041::t_03b9eee7256842 15
+  s_55aceb992fb041::t_485cb1b85cc883 26-34
+  s_55aceb992fb041::t_7bb22920dbe310 10,12,14,22,39,47-54,58
+.github/workflows/release.yml
+  s_55aceb992fb041::t_3f0fb70365c3dc 60
+  s_55aceb992fb041::t_dce61e0dd2d048 184-192
+  s_55aceb992fb041::t_f7d5d04dbea206 100-103,105-109,111-114,127,130,132,136,140-141,152
+  s_55aceb992fb041::t_1fc60f744d2ab0 216-226,233-240
+  s_55aceb992fb041::t_26e6a7655c0086 247,249
+  s_55aceb992fb041::t_bd8d80f63d421c 3,11,22,27,33,48
+  s_55aceb992fb041::t_28a7f08c0c2942 207
+  s_55aceb992fb041::t_f6c7685ccffcbf 170-171,175-180,245-246,248,250-251
+  s_55aceb992fb041::t_e4f045064e2e79 10,12-15,42,44,51-55,63-64,66-69,79,92,95-96,98-99,244
+  s_55aceb992fb041::t_fca1d151022ff9 56-59,61-62,65,70-78,80-81,93-94,97,104,110,121-122
+  s_55aceb992fb041::t_daa7b81d3eb382 151,183,201-206,208-215,227-232
+  s_55aceb992fb041::t_5c608981029b9d 82
+  s_55aceb992fb041::t_552542310b1dc0 241
+tools/release-new.sh
+  s_55aceb992fb041::t_e20f68c7cb5743 1,3-25,27-29,31
+  s_55aceb992fb041::t_4de6d07b6c01ff 2,26,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ef91c3ab756363135adf9416cc8d70c49f8ebb72",
+  "prompts": {},
+  "sessions": {
+    "s_55aceb992fb041": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d875-876f-71d1-bd71-a3759b4cf3da",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
