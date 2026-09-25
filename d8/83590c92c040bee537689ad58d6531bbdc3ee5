@@ -1,0 +1,40 @@
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/history-panel.php
+  s_bff3263727ba09::t_2c0ca661667738 20-28,56-61,63
+  s_bff3263727ba09::t_443bfd7887cfbc 9,11-12,17-19,38,54-55,62,64
+  s_bff3263727ba09::t_544ad871cc80c1 16
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/unraid-certbot.page
+  s_bff3263727ba09::t_e46883d9c759ad 105-115
+  s_bff3263727ba09::t_443bfd7887cfbc 40,62,73,96-104,116
+  s_bff3263727ba09::t_292a0f7204c2c6 117
+source/unraid-certbot/usr/local/emhttp/languages/zh_CN/unraidcertbot.txt
+  s_bff3263727ba09::t_443bfd7887cfbc 6-8
+tests/regression.sh
+  s_bff3263727ba09::t_2c0ca661667738 126,143,145,151,153,156-157
+  s_bff3263727ba09::t_41b6fdbe78005c 127-130,141-142,144,155
+  s_bff3263727ba09::t_4b74b542c75798 147
+  s_bff3263727ba09::t_c02b4f420b3a86 152,154
+  s_bff3263727ba09::t_58d9a2627fb8d5 146,149-150
+  s_bff3263727ba09::t_3b6c8e9c790714 148
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/config-form.php
+  s_bff3263727ba09::t_ee9e0b15b13a27 122
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/sheets/unraid-certbot.css
+  s_bff3263727ba09::t_2c0ca661667738 75-76,79-81,83-90,92-94,96-99,101-105,108-109,111-115
+  s_bff3263727ba09::t_443bfd7887cfbc 71-73,77-78,82,91,95,100,106-107,110,116
+  s_bff3263727ba09::t_ee9e0b15b13a27 74,148-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d883590c92c040bee537689ad58d6531bbdc3ee5",
+  "prompts": {},
+  "sessions": {
+    "s_bff3263727ba09": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d74e-159d-7fa3-837d-636237faeb50",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
