@@ -6,7 +6,7 @@
 <!ENTITY launch    "Settings/UnraidCertbot">
 <!ENTITY github    "tautcony/unraid-certbot">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/master/&name;.plg">
-<!ENTITY pkgfile   "&name;-&version;-noarch-1.txz">
+<!ENTITY pkgfile   "&name;-&version;-noarch-2.txz">
 ]>
 
 <PLUGIN name="&name;"
@@ -48,8 +48,8 @@ exit 0
 
 <FILE Name="/boot/config/plugins/&name;/&pkgfile;" Run="upgradepkg --install-new">
 <URL>https://github.com/&github;/releases/download/&version;/&pkgfile;</URL>
-<MD5>11fb13a7a30d4ed343cbde7d5458f4dd</MD5>
-<SHA256>83684273b6b9e9ae60ea19c9c029d667504f5120d41f729f1e7989f7911af4ae</SHA256>
+<MD5>d435d0616225729cdb35e85cccb1addf</MD5>
+<SHA256>c1ffe3bbb65c98fe66f525090357015bd17718faf78e79709fba207026d5428b</SHA256>
 </FILE>
 
 <FILE Run="/bin/bash">
