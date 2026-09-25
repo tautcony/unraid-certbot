@@ -173,7 +173,7 @@ CONFIG_PAGE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=con
    && "$CONFIG_PAGE" != *'name="#apply"'* ]] || fail 'settings form still uses progressFrame'
 BEFORE="$(cksum "$CFG" "$CRED")"
 RESPONSE="$(curl -fsS -D "$WORK/update.headers" -H "$ORIGIN" -d "$BODY&LOCK_DIR=/boot&DOCKER=/bad&CF_API_TOKEN_NEW=abcdefghijabcdefghij" "$URL")"
-rg -iq '^Content-Type: application/json' "$WORK/update.headers" || fail 'save response is not JSON'
+grep -iq '^Content-Type: application/json' "$WORK/update.headers" || fail 'save response is not JSON'
 json_ok false "$RESPONSE" || fail 'unknown POST key accepted'
 [ "$(cksum "$CFG" "$CRED")" = "$BEFORE" ] || fail 'invalid POST changed config or token'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&CF_API_TOKEN_CLEAR=yes&ACME_EMAIL=invalid" "$URL")"
