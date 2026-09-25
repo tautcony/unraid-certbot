@@ -68,6 +68,52 @@
   word-break: break-word;
   white-space: normal;
 }
+.cb-history-pages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 12px;
+}
+.cb-history-pages button {
+  box-sizing: border-box;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--border-color, #d3d3d3);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color, #1c1c1c);
+  font: inherit;
+  font-size: 13px;
+  line-height: 30px;
+  text-align: center;
+  cursor: pointer;
+}
+.cb-history-pages button:hover:not(:disabled),
+.cb-history-pages button:focus-visible {
+  border-color: var(--orange-500, #ff8c2f);
+}
+.cb-history-pages button.active {
+  background: var(--orange-500, #ff8c2f);
+  border-color: var(--orange-500, #ff8c2f);
+  color: #fff;
+}
+.cb-history-pages button:disabled {
+  cursor: default;
+}
+.cb-history-pages button:disabled:not(.active) {
+  opacity: 0.4;
+}
+.cb-history-ellipsis {
+  width: 24px;
+  text-align: center;
+  line-height: 32px;
+}
 
 /* ---------- 标记与日志 ---------- */
 .cb-badge {
@@ -99,6 +145,9 @@
 }
 
 /* ---------- 设置表单 ---------- */
+.cb-apply-action {
+  text-align: center;
+}
 .cb-actions input[type="button"] {
   margin-right: 8px;
 }

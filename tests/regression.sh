@@ -123,6 +123,11 @@ else
 fi
 wait "$FIRST_PID" || fail 'first renewal failed'
 
+for ((n = 1; n <= 85; n++)); do
+  printf '2026-09-25 12:00:%02d\tmanual\tsuccess\texample.com\tpage-item-%02d\n' \
+    "$n" "$n" >> "$SANDBOX/boot/config/plugins/unraid-certbot/history.tsv"
+done
+
 PORT=$((20000 + RANDOM % 20000))
 printf 'armed\n' > "$WORK/cron-fail"
 CB_DEV_CRON_FAIL_ONCE="$WORK/cron-fail" CB_DOCKER="$SANDBOX/bin/docker" php -S "127.0.0.1:$PORT" \
@@ -133,6 +138,23 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
   curl -fsS "http://127.0.0.1:$PORT/" -o /dev/null 2>/dev/null && break
   sleep 0.2
 done
+PAGE1="$(curl -fsS "http://127.0.0.1:$PORT/Settings/UnraidCertbot?tab=history&history_page=1")"
+PAGE2="$(curl -fsS "http://127.0.0.1:$PORT/Settings/UnraidCertbot?tab=history&history_page=2")"
+PAGEMIDDLE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/UnraidCertbot?tab=history&history_page=5")"
+PAGELAST="$(curl -fsS "http://127.0.0.1:$PORT/Settings/UnraidCertbot?tab=history&history_page=999")"
+if [[ "$PAGE1" != *'<td>page-item-85</td>'* || "$PAGE1" == *'<td>page-item-75</td>'* ]]; then
+  printf '%s\n' "$PAGE1" | grep -oE '<td>page-item-[0-9]+</td>' | head -n 25 >&2 || true
+  printf '%s\n' "$PAGE1" | head -c 600 >&2
+  tail -n 12 "$WORK/server.log" >&2
+  fail 'first history page has wrong records'
+fi
+[[ "$PAGE2" == *'<td>page-item-75</td>'* && "$PAGE2" != *'<td>page-item-85</td>'* ]] || fail 'second history page has wrong records'
+LAST_PAGE=$(( ($(wc -l < "$SANDBOX/boot/config/plugins/unraid-certbot/history.tsv") + 9) / 10 ))
+[[ "$PAGELAST" == *"aria-label=\"Page $LAST_PAGE\" class=\"active\" aria-current=\"page\""* && "$PAGELAST" != *'<td>page-item-85</td>'* ]] \
+  || fail 'out-of-range history page was not clamped'
+[[ "$PAGE1" == *'aria-label="Next page"'* ]] || fail 'history pagination controls missing'
+[[ "$PAGEMIDDLE" == *'class="cb-history-ellipsis"'* && "$PAGEMIDDLE" == *'aria-label="Page 5" class="active" aria-current="page"'* ]] \
+  || fail 'middle history page pagination is wrong'
 
 BODY='DOMAINS=example.com&ACME_EMAIL=admin@example.com&UNRAID_HOSTNAME=tower&PROPAGATION=60&CERT_DIR=/mnt/user/appdata/letsencrypt&SCHEDULE=daily&SCHEDULE_TIME=01:14&RESTART_NGINX=yes&STAGING=no'
 ORIGIN="Origin: http://127.0.0.1:$PORT"

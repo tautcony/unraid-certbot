@@ -119,7 +119,7 @@ function cb_form(array $cfg, array $fail = []): void
   </dd>
 </dl>
 
-<p><input type="submit" name="#apply" value="<?=_('Apply')?>" disabled></p>
+<p class="cb-apply-action"><input type="submit" name="#apply" value="<?=_('Apply')?>" disabled></p>
 </form>
 <?php
 }

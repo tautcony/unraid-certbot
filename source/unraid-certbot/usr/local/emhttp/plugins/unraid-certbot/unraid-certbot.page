@@ -37,6 +37,7 @@ if (!$st['configured']['host'])    $missing[] = _('Unraid Hostname');
 if (!$st['configured']['domains']) $missing[] = _('Domains');
 
 $log = cb_log_tail(400);
+$historyPage = max(1, (int)($_GET['history_page'] ?? 1));
 ?>
 
 <div id="cb-tabs">
@@ -58,7 +59,7 @@ $log = cb_log_tail(400);
 
 <!-- ======================= 续期历史 ======================= -->
 <div id="cb-pane-history" class="cb-pane"<?=$tab === 'history' ? '' : ' style="display:none"'?>>
-<?php cb_history_panel($st, $cb); ?>
+<?php cb_history_panel($cb, $historyPage); ?>
 </div>
 
 <!-- ======================= 运行日志 ======================= -->
@@ -69,7 +70,7 @@ $log = cb_log_tail(400);
 <?php if (trim($log) === ''): ?>
 <blockquote class="inline_help" style="display:block"><?=_('No log entries.')?></blockquote>
 <?php else: ?>
-<div class="cb-log"><?=cb_e($log)?></div>
+<div id="cb-log-content" class="cb-log"><?=cb_e($log)?></div>
 <?php endif; ?>
 </div>
 
@@ -90,6 +91,28 @@ function cbTab(name) {
   url.searchParams.set('tab', name);
   url.searchParams.set('_', Date.now());
   location.assign(url.toString());
+}
+
+function cbHistoryPage(page) {
+  var url = new URL(location.href);
+  url.searchParams.set('tab', 'history');
+  url.searchParams.set('history_page', String(page));
+  url.searchParams.set('_', Date.now());
+  location.assign(url.toString());
+}
+
+if (cbTabNow === 'log') {
+  var cbScrollLogToEnd = function () {
+    requestAnimationFrame(function () {
+      var log = document.getElementById('cb-log-content');
+      if (log) { log.scrollTop = log.scrollHeight; }
+    });
+  };
+  if (document.readyState === 'complete') {
+    cbScrollLogToEnd();
+  } else {
+    window.addEventListener('load', cbScrollLogToEnd, {once: true});
+  }
 }
 
 function cbEnableApply(form) {
