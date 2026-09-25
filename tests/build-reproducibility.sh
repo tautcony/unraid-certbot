@@ -47,7 +47,7 @@ if [ "$first" != "$second" ]; then
 fi
 
 TZ=UTC tools/build.sh --local >/dev/null
-tar -tJf "$pkg" | grep -q 'local-only.cache' || {
+tar -tJf "$pkg" | grep 'local-only.cache' >/dev/null || {
   echo 'FAIL: --local did not package worktree changes' >&2
   exit 1
 }
