@@ -60,6 +60,8 @@ jobs:
           ./build.sh "${VERSION}"
 
       - name: 校验产物
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           pkg="dist/unraid-certbot-${VERSION}-noarch-1.txz"
@@ -82,6 +84,17 @@ jobs:
           expanded="$(xmllint --noent unraid-certbot.plg)"
           grep -q "releases/download/${VERSION}/" <<<"$expanded" \
             || { echo "::error::.plg 里的下载地址没有指向本次 tag"; exit 1; }
+
+          # 同一 tag 的资产一旦发布，重跑只能得到完全相同的字节。
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            existing="$(gh release view "$VERSION" --json assets \
+              --jq ".assets[] | select(.name == \"$pkg\") | .digest")"
+            if [ -n "$existing" ]; then
+              [ "$existing" = "sha256:${sha}" ] \
+                || { echo "::error::已发布资产的 SHA256 为 ${existing}，本次为 sha256:${sha}；拒绝覆盖同一 tag"; exit 1; }
+              echo "RELEASE_ASSET_EXISTS=true" >> "$GITHUB_ENV"
+            fi
+          fi
 
           echo "校验通过：版本 ${declared}，MD5 ${md5}"
 
@@ -152,9 +165,11 @@ jobs:
           \`\`\`
           EOF
 
-          # --verify-tag 防止 gh 自己把 tag 建出来再触发一轮；已存在则改为覆盖上传
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            gh release upload "$VERSION" "$pkg" --clobber
+          # 已发布的相同资产无需覆盖；--verify-tag 防止 gh 自己创建 tag。
+          if [ "${RELEASE_ASSET_EXISTS:-}" = true ]; then
+            echo "资产已存在且 SHA256 一致，跳过上传"
+          elif gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" "$pkg"
           else
             gh release create "$VERSION" \
               --verify-tag \

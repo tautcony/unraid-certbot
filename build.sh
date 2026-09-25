@@ -109,6 +109,15 @@ chmod 0755 "${STAGE}/install/doinst.sh"
 # 打 tar.xz
 # ---------------------------------------------------------------------------
 
+# tar 会记录每个条目的 mtime；统一为当前提交的 committer 时间，重跑同一提交不变。
+COMMIT_TIME="$(TZ=UTC git -C "$ROOT" log -1 --format=%cd --date=format-local:%Y%m%d%H%M.%S HEAD)"
+[ -n "$COMMIT_TIME" ] || { echo "错误：无法获取当前提交时间" >&2; exit 1; }
+TZ=UTC find "$STAGE" -exec touch -h -t "$COMMIT_TIME" {} +
+
+# 显式指定条目顺序，避免文件系统遍历顺序影响 tar 字节流。
+FILE_LIST="${ROOT}/build/archive-files"
+(cd "$STAGE" && find . -print0 | LC_ALL=C sort -z) > "$FILE_LIST"
+
 # 优先用 GNU tar；macOS 上可能是 gtar，也可能是支持 --format=gnutar 的 bsdtar
 TAR="tar"
 if command -v gtar >/dev/null 2>&1; then
@@ -121,7 +130,7 @@ if ! "$TAR" --format=gnu -cf /dev/null --files-from /dev/null 2>/dev/null; then
 fi
 
 "$TAR" --format="${TAR_FORMAT}" --owner=0 --group=0 --numeric-owner \
-  -cJf "${DIST}/${PKG}" -C "$STAGE" .
+  --no-recursion --null -cJf "${DIST}/${PKG}" -C "$STAGE" -T "$FILE_LIST"
 
 # ---------------------------------------------------------------------------
 # 校验和

@@ -64,6 +64,13 @@ if command -v curl >/dev/null 2>&1 && command -v openssl >/dev/null 2>&1; then
   if bash "$ROOT/tests/regression.sh"; then ok 'tests/regression.sh'; else bad 'tests/regression.sh'; fi
 fi
 
+echo "== build reproducibility =="
+if bash "$ROOT/tests/build-reproducibility.sh"; then
+  ok 'tests/build-reproducibility.sh'
+else
+  bad 'tests/build-reproducibility.sh'
+fi
+
 # xmllint 只检查 XML 是否合法，不展开实体。
 # .plg 里全是 &name; 这类实体，实体写错会导致 Unraid 装出来的路径是空的，
 # 所以这里按 Unraid 自己的方式（simplexml + LIBXML_NOCDATA）解析一遍。
