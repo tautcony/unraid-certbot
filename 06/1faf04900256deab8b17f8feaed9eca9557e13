@@ -1,0 +1,19 @@
+tests/regression.sh
+  s_55aceb992fb041::t_b287282694c633 176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "061faf04900256deab8b17f8feaed9eca9557e13",
+  "prompts": {},
+  "sessions": {
+    "s_55aceb992fb041": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d875-876f-71d1-bd71-a3759b4cf3da",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
