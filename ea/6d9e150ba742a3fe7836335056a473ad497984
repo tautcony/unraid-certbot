@@ -1,0 +1,21 @@
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/unraid-certbot.page
+  s_55aceb992fb041::t_a2da054fc8ac33 216,220,249,252
+tests/navigation.js
+  s_55aceb992fb041::t_842f045c0e93d1 53-57,60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ea6d9e150ba742a3fe7836335056a473ad497984",
+  "prompts": {},
+  "sessions": {
+    "s_55aceb992fb041": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d875-876f-71d1-bd71-a3759b4cf3da",
+        "model": "unknown"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
