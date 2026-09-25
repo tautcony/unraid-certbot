@@ -50,9 +50,14 @@ async function page(path) {
       getElementById: id => id === 'cb-config-form' ? form : id === 'cb-update-result' ? panel : null,
       createElement: () => ({children: [], appendChild(child) { this.children.push(child); }})
     },
-    FormData: class { constructor(source) { assert.equal(source, form); } },
+    FormData: class {
+      constructor(source) { assert.equal(source, form); }
+      *[Symbol.iterator]() { yield ['UI_LANGUAGE', 'zh_CN']; }
+    },
+    URLSearchParams,
     fetch: (_url, options) => {
       assert.equal(options.method, 'POST');
+      assert.equal(options.body.get('UI_LANGUAGE'), 'zh_CN');
       return Promise.resolve({ok: true, json: () => Promise.resolve(fetchResponse)});
     },
     requestAnimationFrame: () => {},

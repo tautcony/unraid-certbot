@@ -213,11 +213,11 @@ function cbBindHelp() {
 cbBindHelp();
 
 // 保存结果保持在设置页内，避免依赖 Unraid 的隐藏 progressFrame。
-function cbSaveResult(ok, msg, reload, details) {
+function cbSaveResult(ok, msg, reload, details, pending) {
   var panel = document.getElementById('cb-update-result');
   if (panel) {
     panel.style.display = 'block';
-    panel.dataset.state = ok ? 'success' : 'error';
+    panel.dataset.state = pending ? 'pending' : (ok ? 'success' : 'error');
     panel.textContent = '';
     var heading = document.createElement('b');
     heading.textContent = msg || (ok ? <?=json_encode(cb_t('Settings saved'), JSON_UNESCAPED_UNICODE)?> : <?=json_encode(cb_t('Settings not saved'), JSON_UNESCAPED_UNICODE)?>);
@@ -246,10 +246,10 @@ if (cbConfigForm) {
     cbSaving = true;
     var button = cbConfigForm.querySelector('input[type="submit"]');
     if (button) { button.disabled = true; }
-    cbSaveResult(false, <?=json_encode(cb_t('Saving settings...'), JSON_UNESCAPED_UNICODE)?>, false);
+    cbSaveResult(false, <?=json_encode(cb_t('Saving settings...'), JSON_UNESCAPED_UNICODE)?>, false, null, true);
     fetch(cbConfigForm.action, {
       method: 'POST',
-      body: new FormData(cbConfigForm),
+      body: new URLSearchParams(new FormData(cbConfigForm)),
       credentials: 'same-origin',
       headers: {'Accept': 'application/json'}
     }).then(function (response) {
