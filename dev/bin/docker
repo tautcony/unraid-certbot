@@ -88,6 +88,9 @@ make_certs() {
 docker_run() {
   local cert_dir="" cred_mount="" cert_name="" image="" staging="no" force="no"
   local domains=()
+  if [[ "${CB_DEV_RUN_DELAY:-0}" =~ ^[0-9]+$ ]] && [ "${CB_DEV_RUN_DELAY:-0}" -le 10 ]; then
+    sleep "${CB_DEV_RUN_DELAY:-0}"
+  fi
 
   # 只挑续期关心的参数，其余忽略
   while [ $# -gt 0 ]; do
@@ -127,6 +130,20 @@ docker_run() {
     echo "错误：没有找到 --cert-name" >&2
     exit 1
   fi
+  local check_name="${cert_name#\*.}"
+  if ! [[ "$check_name" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] \
+    || [[ "$check_name" == *..* ]] || [[ "$check_name" != *.* ]]; then
+    echo "错误：非法 cert-name" >&2
+    exit 1
+  fi
+  for domain in "${domains[@]}"; do
+    local check_domain="${domain#\*.}"
+    if ! [[ "$check_domain" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] \
+      || [[ "$check_domain" == *..* ]] || [[ "$check_domain" != *.* ]]; then
+      echo "错误：非法域名" >&2
+      exit 1
+    fi
+  done
   if [ -z "$cred_mount" ] || [ ! -s "$cred_mount" ]; then
     echo "错误：Cloudflare 凭据文件不可读：${cred_mount:-未挂载}" >&2
     exit 1
@@ -135,8 +152,17 @@ docker_run() {
     echo "错误：没有找到 -d 域名" >&2
     exit 1
   fi
+  if [ "${CB_DEV_STUB_SKIP_OUTPUT:-no}" = yes ]; then
+    echo "[dev-stub] 模拟成功但不生成产物"
+    exit 0
+  fi
 
+  [ -d "$cert_dir" ] && [ ! -L "$cert_dir" ] || { echo "错误：证书目录无效" >&2; exit 1; }
+  cert_dir="$(cd "$cert_dir" && pwd -P)"
   local live="${cert_dir}/live/${cert_name}"
+  [ ! -L "$cert_dir/live" ] && [ ! -L "$cert_dir/renewal" ] && [ ! -L "$live" ] || {
+    echo "错误：证书产物路径经过符号链接" >&2; exit 1;
+  }
   mkdir -p "${cert_dir}/accounts/dev" "${cert_dir}/renewal" "${live}" 2>/dev/null
 
   # 与 certbot 一致：没到期且没 --force-renewal 就跳过

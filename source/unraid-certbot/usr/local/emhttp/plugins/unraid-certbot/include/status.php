@@ -37,6 +37,51 @@ define('CB_CRED_FILE',  CB_CFG_DIR . '/cloudflare.ini');
 define('CB_HISTORY',    CB_CFG_DIR . '/history.tsv');
 define('CB_LOG',        CB_CFG_DIR . '/certbot.log');
 
+function cb_config_keys(): array
+{
+    return (array)@file(CB_PLUGIN_DIR . '/config-keys.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+}
+
+/** Only appdata descendants are valid certbot state directories. */
+function cb_valid_cert_dir(string $path): bool
+{
+    if (!preg_match('#^/mnt/user/appdata/[A-Za-z0-9._/-]+$#D', $path)
+        || strpos($path, '//') !== false) {
+        return false;
+    }
+    $parts = explode('/', substr($path, strlen('/mnt/user/appdata/')));
+    if (in_array('', $parts, true) || in_array('.', $parts, true) || in_array('..', $parts, true)) {
+        return false;
+    }
+    $real = cb_syspath($path);
+    $root = cb_syspath('/mnt/user/appdata');
+    for ($p = $real; $p !== $root && $p !== dirname($p); $p = dirname($p)) {
+        if (is_link($p)) {
+            return false;
+        }
+    }
+    if (is_link($root)) {
+        return false;
+    }
+    if (is_dir($real) && realpath($real) !== $real) {
+        return false;
+    }
+    if (is_dir($real)) {
+        foreach ((array)@file('/proc/mounts', FILE_IGNORE_NEW_LINES) as $mount) {
+            $fields = preg_split('/\s+/', $mount);
+            if (isset($fields[1]) && str_replace('\\040', ' ', $fields[1]) === $real) {
+                return false;
+            }
+        }
+    }
+    // An existing mount point has its own device and must not be used as certbot state.
+    if (is_dir($real) && is_dir(dirname($real))
+        && @stat($real)['dev'] !== @stat(dirname($real))['dev']) {
+        return false;
+    }
+    return true;
+}
+
 /** 把配置里的 yes/on/true/1 统一判断成布尔值 */
 function cb_bool($v): bool
 {

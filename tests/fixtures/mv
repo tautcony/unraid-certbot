@@ -1,0 +1,8 @@
+#!/bin/sh
+case "${2:-}" in
+  *_unraid_bundle.pem)
+    [ "$(dirname "$1")" = "$(dirname "$2")" ] || exit 1
+    [ "${CB_TEST_FAIL_BUNDLE_MV:-no}" = yes ] && exit 1
+    ;;
+esac
+exec /bin/mv "$@"

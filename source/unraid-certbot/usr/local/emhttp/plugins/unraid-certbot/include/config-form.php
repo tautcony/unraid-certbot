@@ -19,9 +19,7 @@ function cb_form(array $cfg, array $fail = []): void
 </blockquote>
 <?php endif; ?>
 
-<form method="POST" action="/update.php" target="progressFrame">
-<input type="hidden" name="#file" value="<?=$cb?>/<?=$cb?>.cfg">
-<input type="hidden" name="#include" value="/plugins/<?=$cb?>/include/update.php">
+<form method="POST" action="/plugins/<?=$cb?>/include/update.php" target="progressFrame">
 
 <dl>
   <dt><?=_('Cloudflare API Token')?></dt>

@@ -82,7 +82,7 @@ Source is under `source/unraid-certbot/` and maps to `/usr/local/emhttp/` on Unr
 
 See [dev/README.md](dev/README.md) for the local sandbox.
 
-Push a `YYYY.MM.DD` tag to let GitHub Actions build and publish a release. Unraid compares plugin versions with `strcmp`, so use the date format.
+Push a `YYYY.MM.DD` tag to let GitHub Actions build and publish a release. Version tags must use this format.
 
 ## License
 

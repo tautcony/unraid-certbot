@@ -40,10 +40,11 @@ PLUGIN_DIR="$(syspath "/usr/local/emhttp/plugins/${PLUGIN}")"
 CFG_DIR="$(syspath "/boot/config/plugins/${PLUGIN}")"
 CFG_FILE="${CFG_DIR}/${PLUGIN}.cfg"
 DEFAULT_CFG="${PLUGIN_DIR}/default.cfg"
+SCHEMA_FILE="${PLUGIN_DIR}/config-keys.txt"
 CRED_FILE="${CFG_DIR}/cloudflare.ini"
 LOG_FILE="${CFG_DIR}/certbot.log"
 HISTORY_FILE="${CFG_DIR}/history.tsv"
-LOCK_DIR="$(syspath "/var/run/${PLUGIN}.lock.d")"
+LOCK_FILE="$(syspath "/var/run/${PLUGIN}.lock")"
 SSL_CERTS_DIR="$(syspath "/boot/config/ssl/certs")"
 NGINX_RC="$(syspath "/etc/rc.d/rc.nginx")"
 DOCKER="${CB_DOCKER:-docker}"
@@ -212,41 +213,29 @@ fail() {
 # ---------------------------------------------------------------------------
 
 load_cfg() {
-  local file line key val
+  local file key val
   for file in "$DEFAULT_CFG" "$CFG_FILE"; do
     [ -f "$file" ] || continue
-    while IFS= read -r line || [ -n "$line" ]; do
-      line="${line%%#*}"
-      case "$line" in
-        *"="*) ;;
-        *) continue ;;
-      esac
-      key="${line%%=*}"
-      val="${line#*=}"
-      key=$(printf '%s' "$key" | tr -d '[:space:]')
-      val=$(printf '%s' "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-      # 去除成对的单引号或双引号。
-      case "$val" in
-        \"*\") val="${val:1:${#val}-2}" ;;
-        \'*\') val="${val:1:${#val}-2}" ;;
-      esac
-      # 仅接受安全变量名，避免把配置内容当作 Shell 语法执行。
+    if ! php -r 'exit(is_array(@parse_ini_file($argv[1], false, INI_SCANNER_RAW)) ? 0 : 1);' "$file"; then
+      echo "配置文件格式不正确：$file" >&2
+      return 1
+    fi
+    while IFS= read -r -d '' key && IFS= read -r -d '' val; do
       case "$key" in
-        *[!A-Za-z0-9_]*) continue ;;
-        [0-9]*) continue ;;
-        "") continue ;;
+        ''|*[!A-Za-z0-9_]*|[0-9]*) continue ;;
       esac
-      # 保留影响脚本运行的关键环境变量。
-      case "$key" in
-        IFS|PATH|HOME|SHELL|ENV|BASH_ENV|BASHOPTS|SHELLOPTS|PS4|LD_PRELOAD|LD_LIBRARY_PATH|TMPDIR|PWD|OLDPWD)
-          continue ;;
-      esac
+      grep -qxF -- "$key" "$SCHEMA_FILE" 2>/dev/null || continue
       printf -v "$key" '%s' "$val"
-    done < "$file"
+    done < <(php -r '
+      $cfg = parse_ini_file($argv[1], false, INI_SCANNER_RAW);
+      foreach ($cfg as $key => $value) {
+          if (is_string($value)) echo $key, "\0", $value, "\0";
+      }
+    ' "$file")
   done
 }
 
-load_cfg
+load_cfg || exit 1
 
 : "${ACME_EMAIL:=}"
 : "${UNRAID_HOSTNAME:=}"
@@ -257,7 +246,34 @@ load_cfg
 : "${RESTART_NGINX:=yes}"
 : "${STAGING:=no}"
 
-# 配置中的证书目录同样需添加沙箱前缀
+valid_cert_dir() {
+  local raw="$1" rest part path
+  [[ "$raw" == /mnt/user/appdata/* ]] || return 1
+  rest="${raw#/mnt/user/appdata/}"
+  [ -n "$rest" ] && [[ "$rest" != *'//'* ]] && [[ "$rest" != */ ]] || return 1
+  IFS='/' read -r -a parts <<< "$rest"
+  for part in "${parts[@]}"; do
+    [[ "$part" =~ ^[A-Za-z0-9._-]+$ ]] && [ "$part" != '.' ] && [ "$part" != '..' ] || return 1
+  done
+  path="$(syspath /mnt/user/appdata)"
+  [ ! -L "$path" ] || return 1
+  for part in "${parts[@]}"; do
+    path="$path/$part"
+    [ ! -L "$path" ] || return 1
+  done
+  if [ -d "$path" ]; then
+    [ "$(cd "$path" && pwd -P)" = "$path" ] || return 1
+    if [ -f /proc/mounts ] && awk -v target="$path" '$2 == target {found=1} END {exit !found}' /proc/mounts; then
+      return 1
+    fi
+    [ "$(stat -c %d "$path" 2>/dev/null || stat -f %d "$path")" = "$(stat -c %d "$(dirname "$path")" 2>/dev/null || stat -f %d "$(dirname "$path")")" ] || return 1
+  fi
+}
+
+if ! valid_cert_dir "$CERT_DIR"; then
+  echo "证书目录必须位于 /mnt/user/appdata 的普通子目录：$CERT_DIR" >&2
+  exit 1
+fi
 CERT_DIR="$(syspath "$CERT_DIR")"
 
 [ "$STAGING_OVERRIDE" = "yes" ] && STAGING="yes"
@@ -308,8 +324,14 @@ fi
 if [ -z "$UNRAID_HOSTNAME" ]; then
   fail 1 "未配置主机名"
 fi
+if ! [[ "$UNRAID_HOSTNAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$ ]]; then
+  fail 1 "主机名格式不正确"
+fi
 if [ -z "$DOMAINS" ]; then
   fail 1 "未配置域名"
+fi
+if ! [[ "$PROPAGATION" =~ ^[0-9]+$ ]] || [ "$PROPAGATION" -lt 10 ] || [ "$PROPAGATION" -gt 900 ]; then
+  fail 1 "DNS 传播等待时间不正确"
 fi
 if [ ! -s "$CRED_FILE" ]; then
   fail 1 "未配置 Cloudflare API Token"
@@ -323,6 +345,11 @@ esac
 DOMAIN_ARRAY=()
 while IFS= read -r d; do
   [ -n "$d" ] || continue
+  check_domain="${d#\*.}"
+  if ! [[ "$check_domain" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] \
+    || [[ "$check_domain" == *..* ]] || [[ "$check_domain" != *.* ]]; then
+    fail 1 "域名格式不正确：$d"
+  fi
   if [[ " ${DOMAIN_ARRAY[*]-} " == *" $d "* ]]; then
     continue
   fi
@@ -334,18 +361,14 @@ if [ "${#DOMAIN_ARRAY[@]}" -eq 0 ]; then
 fi
 PRIMARY_DOMAIN="${DOMAIN_ARRAY[0]}"
 
-# 使用原子 mkdir 加锁，并清理没有活动进程的陈旧锁。
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  if [ -f "${LOCK_DIR}/pid" ] && kill -0 "$(cat "${LOCK_DIR}/pid" 2>/dev/null)" 2>/dev/null; then
-    log "已有续期正在进行，跳过 (PID $(cat "${LOCK_DIR}/pid"))"
-    exit 3
-  fi
-  log "⚠️  清理陈旧的锁目录 ${LOCK_DIR}"
-  rm -rf "$LOCK_DIR"
-  mkdir "$LOCK_DIR" 2>/dev/null || fail 3 "无法获取运行锁"
+if ! command -v flock >/dev/null 2>&1; then
+  fail 3 "缺少 flock 命令"
 fi
-printf '%s' "$$" > "${LOCK_DIR}/pid"
-trap 'rm -rf "$LOCK_DIR"' EXIT
+exec 9>"$LOCK_FILE" || fail 3 "无法打开运行锁"
+if ! flock -n 9; then
+  log "已有续期正在进行，跳过"
+  exit 3
+fi
 
 # 先检查 Docker 服务，再拉取所需镜像，尽早报告可操作的错误。
 if ! command -v "$DOCKER" >/dev/null 2>&1; then
@@ -362,8 +385,7 @@ if ! "$DOCKER" image inspect "$IMAGE" >/dev/null 2>&1; then
   fi
 fi
 
-mkdir -p "$CERT_DIR" || fail 1 "无法创建证书目录 ${CERT_DIR}"
-chmod 700 "$CERT_DIR" 2>/dev/null
+mkdir -p -m 700 "$CERT_DIR" || fail 1 "无法创建证书目录 ${CERT_DIR}"
 
 # certbot 需要在 /etc/letsencrypt 下创建 archive/live 符号链接。
 case "$(echo "$(cb_fstype "$CERT_DIR")" | tr 'A-Z' 'a-z')" in
@@ -444,13 +466,32 @@ fi
 
 mkdir -p "$SSL_CERTS_DIR" || fail 1 "无法创建 ${SSL_CERTS_DIR}"
 
-TEMP_BUNDLE=$(mktemp) || fail 1 "无法创建临时文件"
+TEMP_BUNDLE=$(mktemp "${SSL_CERTS_DIR}/.unraid-certbot-bundle.XXXXXX") || fail 1 "无法创建临时文件"
+trap 'rm -f "$TEMP_BUNDLE"' EXIT
 cat "$CERT_FILE" "$KEY_FILE" > "$TEMP_BUNDLE" || { rm -f "$TEMP_BUNDLE"; fail 1 "合并证书失败"; }
-chmod 600 "$TEMP_BUNDLE"
+chmod 600 "$TEMP_BUNDLE" || fail 1 "无法设置 bundle 权限"
+if ! openssl x509 -noout -in "$TEMP_BUNDLE" >/dev/null 2>&1 \
+   || ! openssl pkey -noout -in "$KEY_FILE" >/dev/null 2>&1; then
+  fail 2 "证书或私钥不是有效的 PEM"
+fi
+cert_pub="$(openssl x509 -pubkey -noout -in "$CERT_FILE" 2>/dev/null | openssl pkey -pubin -outform DER 2>/dev/null | openssl dgst -sha256)"
+key_pub="$(openssl pkey -pubout -in "$KEY_FILE" 2>/dev/null | openssl pkey -pubin -outform DER 2>/dev/null | openssl dgst -sha256)"
+[ -n "$cert_pub" ] && [ "$cert_pub" = "$key_pub" ] || fail 2 "证书与私钥不匹配"
+
+PENDING_FILE="${CFG_DIR}/nginx.pending"
 
 # 内容未变化时不写文件，也不重启 nginx。
 if [ -f "$OUTPUT_FILE" ] && cmp -s "$TEMP_BUNDLE" "$OUTPUT_FILE"; then
   rm -f "$TEMP_BUNDLE"
+  if [ "$RESTART_NGINX" = "yes" ] && [ -f "$PENDING_FILE" ]; then
+    log "证书内容未变化，重试 nginx 应用"
+    if [ -x "$NGINX_RC" ] && "$NGINX_RC" restart >/dev/null 2>&1; then
+      rm -f "$PENDING_FILE" || fail 1 "无法清除 nginx 待应用状态"
+      record_history "success" "${DOMAIN_ARRAY[*]}" "Pending nginx restart applied"
+      exit 0
+    fi
+    fail 2 "nginx 重启仍失败，证书待应用"
+  fi
   log "证书内容未变化，跳过写入与重启"
   record_history "success" "${DOMAIN_ARRAY[*]}" "Certificate unchanged; no update needed"
   exit 0
@@ -458,12 +499,24 @@ fi
 
 if [ -f "$OUTPUT_FILE" ]; then
   BACKUP_FILE="${OUTPUT_FILE}.$(date +%Y%m%d)"
+  [ ! -d "$BACKUP_FILE" ] || fail 1 "备份路径是目录，未替换 bundle"
+  BACKUP_TMP=$(mktemp "${SSL_CERTS_DIR}/.unraid-certbot-backup.XXXXXX") || fail 1 "无法创建备份临时文件"
   log "备份旧证书到 ${BACKUP_FILE}"
-  cp "$OUTPUT_FILE" "$BACKUP_FILE" && chmod 600 "$BACKUP_FILE"
+  if ! cp "$OUTPUT_FILE" "$BACKUP_TMP" || ! chmod 600 "$BACKUP_TMP" \
+    || ! mv "$BACKUP_TMP" "$BACKUP_FILE"; then
+    rm -f "$BACKUP_TMP"
+    fail 1 "备份旧证书失败，未替换 bundle"
+  fi
 fi
 
-mv "$TEMP_BUNDLE" "$OUTPUT_FILE" || { rm -f "$TEMP_BUNDLE"; fail 1 "写入 ${OUTPUT_FILE} 失败"; }
-chmod 600 "$OUTPUT_FILE"
+if [ "$RESTART_NGINX" = "yes" ]; then
+  printf '%s\n' "$OUTPUT_FILE" > "$PENDING_FILE" || fail 1 "无法记录 nginx 待应用状态"
+fi
+mv "$TEMP_BUNDLE" "$OUTPUT_FILE" || {
+  rm -f "$TEMP_BUNDLE"
+  [ "$RESTART_NGINX" != "yes" ] || rm -f "$PENDING_FILE"
+  fail 1 "写入 ${OUTPUT_FILE} 失败"
+}
 log "✅ 新证书已写入 ${OUTPUT_FILE}"
 
 # ---------------------------------------------------------------------------
@@ -473,9 +526,10 @@ log "✅ 新证书已写入 ${OUTPUT_FILE}"
 if [ "$RESTART_NGINX" = "yes" ]; then
   log "重启 nginx..."
   if [ -x "$NGINX_RC" ] && "$NGINX_RC" restart >/dev/null 2>&1; then
+    rm -f "$PENDING_FILE" || fail 1 "无法清除 nginx 待应用状态"
     log "✅ nginx 已重启"
   else
-    log "⚠️ nginx 重启失败，请检查 webGUI 是否正常"
+    fail 2 "nginx 重启失败，证书待应用，下次续期会重试"
   fi
 else
   log "已跳过 nginx 重启，新证书将在下次重启 web 服务后生效"

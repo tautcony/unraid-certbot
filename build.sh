@@ -29,7 +29,6 @@ PLG="${ROOT}/${NAME}.plg"
 
 if [ "${1:-}" != "" ]; then
   VERSION="$1"
-  printf '%s\n' "$VERSION" > "${ROOT}/VERSION"
 elif [ -f "${ROOT}/VERSION" ]; then
   VERSION="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
 else
@@ -38,8 +37,14 @@ else
 fi
 
 if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$'; then
-  echo "错误：版本号应形如 2026.09.10（Unraid 用 strcmp 比较版本，日期格式最稳）" >&2
+  echo "错误：版本号格式必须为 YYYY.MM.DD，例如 2026.09.10" >&2
   exit 1
+fi
+
+if [ "${1:-}" != "" ]; then
+  version_tmp="$(mktemp "${ROOT}/.VERSION.XXXXXX")"
+  printf '%s\n' "$VERSION" > "$version_tmp"
+  mv "$version_tmp" "${ROOT}/VERSION"
 fi
 
 PKG="${NAME}-${VERSION}-noarch-1.txz"

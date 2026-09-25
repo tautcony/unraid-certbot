@@ -24,11 +24,19 @@ function addLog(logLine) {
   if (!box) return;
   var text = (logLine === undefined || logLine === null) ? '' : String(logLine);
   var cls = /❌|失败|错误/.test(text) ? 'err' : (/✅|完成/.test(text) ? 'ok' : '');
-  box.insertAdjacentHTML('beforeend', '<div' + (cls ? ' class="' + cls + '"' : '') + '>' + text + '</div>');
+  var line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = text;
+  box.appendChild(line);
   window.scrollTo(0, document.body.scrollHeight);
 }
 function addCloseButton() {
-  addLog("<button class='logLine' type='button' onclick='closeBox()'>关闭</button>");
+  var button = document.createElement('button');
+  button.className = 'logLine';
+  button.type = 'button';
+  button.textContent = '关闭';
+  button.addEventListener('click', closeBox);
+  document.getElementById('log').appendChild(button);
 }
 function closeBox() {
   if (window.parent && typeof parent.cbDevCloseBox === 'function') parent.cbDevCloseBox();

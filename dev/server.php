@@ -6,7 +6,7 @@
  *   php -S 127.0.0.1:8080 -t dev/run/usr/local/emhttp dev/server.php
  *
  * 路由：/（调试首页）、/Settings/UnraidCertbot（设置页）、插件端点
- * （/plugins/unraid-certbot/**.php）、/update.php（仿真保存流程）；
+ * （/plugins/unraid-certbot/**.php）；
  * 沙箱里真实存在的其它文件交给内置服务器。
  */
 
@@ -77,7 +77,8 @@ switch (true) {
         return true;
 
     case $uri === '/update.php':
-        cb_dev_update($DOCROOT);
+        http_response_code(404);
+        echo 'Deprecated endpoint';
         return true;
 }
 
@@ -153,6 +154,18 @@ function cb_dev_endpoint(string $pluginDir, string $rel, string $devRoot): void
         http_response_code(404);
         echo '<p>找不到端点 ' . htmlspecialchars($rel, ENT_QUOTES, 'UTF-8') . '</p>';
         return;
+    }
+    if ($rel === 'plugins/unraid-certbot/include/update.php') {
+        $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+        $origin = (string)($_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? '');
+        $parts = parse_url($origin);
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !$parts
+            || ($parts['host'] ?? '') !== explode(':', $host)[0]
+            || (isset($parts['port']) && (string)$parts['port'] !== (string)($_SERVER['SERVER_PORT'] ?? ''))) {
+            http_response_code(403);
+            echo 'Forbidden';
+            return;
+        }
     }
 
     global $docroot;
@@ -233,96 +246,4 @@ HTML;
         $body . '<h3>沙箱状态</h3>' . $table,
         cb_dev_header_ctx($devRoot) + ['dev_root' => $devRoot, 'source' => 'dev/server.php', 'current' => '/']
     );
-}
-
-/**
- * 仿真 Unraid 的 update.php：先跑 #include 指向的校验脚本，脚本把 $save 置为 false
- * 就拒绝写入，否则把 $_POST 里非 # 开头的字段写成 .cfg。
- */
-function cb_dev_update(string $docroot): void
-{
-    header('Content-Type: text/html; charset=utf-8');
-
-    $statusFile = "$docroot/plugins/unraid-certbot/include/status.php";
-    if (is_file($statusFile)) {
-        define('CB_NO_CLI_OUTPUT', true);
-        require_once $statusFile;
-    } else {
-        http_response_code(500);
-        echo '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"></head><body>'
-           . '<p>找不到插件文件，请先运行 <code>./dev.sh</code> 初始化沙箱。</p></body></html>';
-        return;
-    }
-
-    echo '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
-       . '<title>保存设置</title></head><body style="margin:0">';
-    if (is_file("$docroot/logging.htm")) {
-        readfile("$docroot/logging.htm");
-    }
-    echo '<script>function cbDevFinish(ok,msg){if(window.parent&&parent.cbUpdateDone)parent.cbUpdateDone(ok,msg);}</script>';
-
-    $file       = (string)($_POST['#file'] ?? '');
-    $include    = (string)($_POST['#include'] ?? '');
-    $pluginsDir = dirname(CB_CFG_DIR);
-    $save       = true;
-
-    cb_dev_addlog('=== 保存设置 ===');
-
-    $rel = ltrim(str_replace('\\', '/', $file), '/');
-    if ($rel === '' || strpos($rel, '..') !== false) {
-        cb_dev_addlog('❌ 表单里缺少有效的 #file 字段');
-        $save = false;
-    }
-
-    if ($save && $include !== '') {
-        $incFile = $docroot . $include;
-        if (strpos($include, '..') !== false || !is_file($incFile)) {
-            cb_dev_addlog('找不到校验脚本：' . $include);
-            $save = false;
-        } else {
-            include $incFile; // 校验脚本自己 addLog，并可能把 $save 置为 false
-        }
-    }
-
-    if ($save) {
-        $cfgPath = $pluginsDir . '/' . $rel;
-        $lines   = [];
-        foreach ($_POST as $k => $v) {
-            // Token 由 update.php 单独写进 cloudflare.ini，这里再兜一层
-            if ($k === '' || $k[0] === '#' || is_array($v)
-                || $k === 'CF_API_TOKEN_NEW' || $k === 'CF_API_TOKEN_CLEAR') {
-                continue;
-            }
-            $lines[] = $k . '="' . str_replace(['\\', '"'], ['\\\\', '\\"'], (string)$v) . '"';
-        }
-        if (!is_dir(dirname($cfgPath))) {
-            @mkdir(dirname($cfgPath), 0700, true);
-        }
-        if (@file_put_contents($cfgPath, implode("\n", $lines) . "\n", LOCK_EX) === false) {
-            cb_dev_addlog('写入配置失败：' . $cfgPath);
-            echo '<script>cbDevFinish(false, "写入配置失败")</script></body></html>';
-            return;
-        }
-        cb_dev_addlog('已写入 ' . $cfgPath);
-
-        $cronFile = CB_CFG_DIR . '/renew.cron';
-        if (is_file($cronFile)) {
-            cb_dev_addlog('cron 条目：' . trim((string)file_get_contents($cronFile)));
-        } else {
-            cb_dev_addlog('cron 条目：已清空（自动续期关闭）');
-        }
-        echo '<script>cbDevFinish(true, "设置已保存")</script>';
-    } else {
-        echo '<script>cbDevFinish(false, "设置未保存")</script>';
-    }
-
-    echo '</body></html>';
-}
-
-/** 往保存页面的日志框追加一行 */
-function cb_dev_addlog(string $msg): void
-{
-    $msg = str_replace(["\n", '"'], ['<br>', '\\"'], $msg);
-    echo '<script>addLog("' . $msg . '");</script>';
-    @flush();
 }

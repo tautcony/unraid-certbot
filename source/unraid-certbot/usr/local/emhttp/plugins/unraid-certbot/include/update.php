@@ -19,12 +19,36 @@ require_once "$docroot/plugins/unraid-certbot/include/status.php";
 $cbPluginDir = CB_PLUGIN_DIR;
 $cbCfgDir    = CB_CFG_DIR;
 $cbCredFile  = CB_CRED_FILE;
+header('Content-Type: text/html; charset=utf-8');
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    http_response_code(405);
+    exit;
+}
+$source = (string)($_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? '');
+$sourceHost = parse_url($source, PHP_URL_HOST);
+$sourcePort = parse_url($source, PHP_URL_PORT);
+$requestHost = parse_url('http://' . (string)($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_HOST);
+$requestPort = parse_url('http://' . (string)($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_PORT);
+if ($sourceHost === null || $requestHost === null || strcasecmp($sourceHost, $requestHost) !== 0
+    || $sourcePort !== $requestPort) {
+    http_response_code(403);
+    exit;
+}
+
+echo '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>';
+if (is_file("$docroot/logging.htm")) {
+    readfile("$docroot/logging.htm");
+} else {
+    echo '<pre id="log"></pre><script>function addLog(s){document.getElementById("log").textContent+=s+"\n"}</script>';
+}
 
 /** 将一行消息输出至界面日志框 */
 function cb_say(string $msg, string $prefix = ''): void
 {
-    $msg = str_replace(["\n", '"'], ['<br>', '\\"'], $prefix . $msg);
-    echo "<script>addLog(\"{$msg}\");</script>";
+    $encoded = json_encode(htmlspecialchars($prefix . $msg, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
+    echo "<script>addLog({$encoded});</script>";
     @flush();
 }
 
@@ -50,6 +74,49 @@ function cb_error(string $msg): void
 function cb_notice(string $msg): void
 {
     cb_say($msg, '✅ ');
+}
+
+function cb_cron_text(string $schedule, string $time, string $script): string
+{
+    $days = ['daily' => '* * *', 'weekly' => '* * 0', 'monthly' => '1 * *'];
+    if (!isset($days[$schedule]) || !preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/', $time)) {
+        return '';
+    }
+    [$hour, $minute] = array_map('intval', explode(':', $time));
+    return "$minute $hour {$days[$schedule]} $script --quiet --trigger=cron >/dev/null 2>&1\n";
+}
+
+function cb_restore_file(string $path, $previous): bool
+{
+    if ($previous === null) {
+        return !is_file($path) || @unlink($path);
+    }
+    $tmp = @tempnam(dirname($path), '.restore-');
+    if ($tmp === false) {
+        return false;
+    }
+    $ok = @file_put_contents($tmp, $previous) === strlen($previous)
+        && @chmod($tmp, 0600) && @rename($tmp, $path);
+    if (!$ok) {
+        @unlink($tmp);
+    }
+    return $ok;
+}
+
+$allowed = array_fill_keys(cb_config_keys(), true);
+$special = ['CF_API_TOKEN_NEW' => true, 'CF_API_TOKEN_CLEAR' => true];
+foreach ($_POST as $key => $value) {
+    if (!isset($allowed[$key]) && !isset($special[$key])) {
+        cb_error('不支持的配置字段：' . $key);
+    } elseif (is_array($value)) {
+        cb_error('配置字段格式不正确：' . $key);
+        $_POST[$key] = '';
+    }
+}
+if (cb_errors() !== []) {
+    cb_say('设置未保存，请修正上述问题');
+    echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult(false,"设置未保存");}</script></body></html>';
+    exit;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,14 +181,14 @@ if ($prop < 10 || $prop > 900) {
 // 证书目录
 // ---------------------------------------------------------------------------
 
-$certDir = rtrim(trim((string)($_POST['CERT_DIR'] ?? '')), '/');
+$certDir = trim((string)($_POST['CERT_DIR'] ?? ''));
 if ($certDir === '') {
     $certDir = '/mnt/user/appdata/letsencrypt';
+} else {
+    $certDir = rtrim($certDir, '/') ?: '/';
 }
-if ($certDir[0] !== '/') {
-    cb_error("证书目录必须是绝对路径，当前为：{$certDir}");
-} elseif (strpos($certDir, ' ') !== false) {
-    cb_error('证书目录不能包含空格');
+if (!cb_valid_cert_dir($certDir)) {
+    cb_error("证书目录必须位于 /mnt/user/appdata 的普通子目录且不能经过符号链接：{$certDir}");
 } else {
     // .cfg 中存储 Unraid 上的路径，落盘时映射至沙箱
     $_POST['CERT_DIR'] = $certDir;
@@ -129,7 +196,7 @@ if ($certDir[0] !== '/') {
 
     // 文件系统能力检查：certbot 需在 live/ 与 archive/ 之间创建符号链接，
     // FAT/exFAT 上必然失败。此处提前拦截，避免续期时才抛出 EPERM。
-    [$fsOk, $fsReason, $fsInfo] = cb_fs_check($realCertDir, true);
+    [$fsOk, $fsReason, $fsInfo] = cb_fs_check($realCertDir, false);
     if (!$fsOk) {
         // 沙箱下 $fsReason 为映射后的路径，显示前还原为配置中的路径
         cb_error(str_replace($realCertDir, $certDir, $fsReason));
@@ -151,98 +218,83 @@ foreach (['RESTART_NGINX', 'STAGING'] as $flag) {
     $_POST[$flag] = cb_bool($_POST[$flag] ?? 'no') ? 'yes' : 'no';
 }
 
-// ---------------------------------------------------------------------------
-// Cloudflare Token
-//
-// 表单字段名为 CF_API_TOKEN_NEW，刻意区别于任何 .cfg 键，
-// 避免被 update.php 写入配置文件（处理完后即从 $_POST 中移除）。
-// Token 仅存储于 600 权限的 cloudflare.ini。
-// ---------------------------------------------------------------------------
-
-$newToken  = trim((string)($_POST['CF_API_TOKEN_NEW'] ?? ''));
-$clearTok  = cb_bool($_POST['CF_API_TOKEN_CLEAR'] ?? 'no');
-unset($_POST['CF_API_TOKEN_NEW'], $_POST['CF_API_TOKEN_CLEAR']);
-
-if ($clearTok) {
-    if (is_file($cbCredFile)) {
-        @unlink($cbCredFile);
-        cb_notice('已清除 Cloudflare API Token');
-    }
-} elseif ($newToken !== '') {
-    if (!preg_match('/^[A-Za-z0-9_\-]{20,100}$/', $newToken)) {
-        cb_error('Cloudflare API Token 格式不正确');
-    } else {
-        if (!is_dir($cbCfgDir) && !@mkdir($cbCfgDir, 0700, true)) {
-            cb_error("无法创建配置目录 {$cbCfgDir}");
-        } else {
-            $content = "# 由 unraid-certbot 插件生成，请勿手工编辑\n"
-                     . "# 对应权限：Zone → DNS → Edit\n"
-                     . "dns_cloudflare_api_token = {$newToken}\n";
-            if (@file_put_contents($cbCredFile, $content, LOCK_EX) === false) {
-                cb_error("写入凭据文件失败：{$cbCredFile}");
-            } else {
-                @chmod($cbCredFile, 0600);
-                @chown($cbCredFile, 'root');
-                @chgrp($cbCredFile, 'root');
-                cb_notice('Cloudflare API Token 已保存到 ' . $cbCredFile . '（权限 600）');
-            }
-        }
-    }
-} elseif (!cb_has_token()) {
-    // 未提交新 Token 且无已保存 Token
+// Validate every field before creating or replacing any persistent file.
+$newToken = trim((string)($_POST['CF_API_TOKEN_NEW'] ?? ''));
+$clearTok = cb_bool($_POST['CF_API_TOKEN_CLEAR'] ?? 'no');
+if ($clearTok && $newToken !== '') {
+    cb_error('不能同时填写和清除 Token');
+} elseif ($newToken !== '' && !preg_match('/^[A-Za-z0-9_\-]{20,100}$/', $newToken)) {
+    cb_error('Cloudflare API Token 格式不正确');
+} elseif (!$clearTok && $newToken === '' && !cb_has_token()) {
     cb_error('请填写 Cloudflare API Token');
 }
 
-// ---------------------------------------------------------------------------
-// 只有前面都通过了，才更新 cron
-// ---------------------------------------------------------------------------
+$schedule = (string)($_POST['SCHEDULE'] ?? 'daily');
+$schedules = ['daily', 'weekly', 'monthly', 'off'];
+if (!in_array($schedule, $schedules, true)) {
+    cb_error('自动检查频率不正确');
+}
+$scheduleTime = trim((string)($_POST['SCHEDULE_TIME'] ?? '01:14'));
+if (!preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/', $scheduleTime)) {
+    cb_error('自动检查时间格式不正确，应为 HH:MM');
+}
+$_POST['SCHEDULE'] = $schedule;
+$_POST['SCHEDULE_TIME'] = $scheduleTime;
 
-if (cb_errors() === []) {
-    $script    = "$cbPluginDir/scripts/renew.sh";
-    $schedule  = (string)($_POST['SCHEDULE'] ?? 'daily');
-    $scheduleMap = [
-        'daily'   => '14 1 * * *',
-        'weekly'  => '14 1 * * 0',
-        'monthly' => '14 1 1 * *',
-    ];
-    $scheduleTime = trim((string)($_POST['SCHEDULE_TIME'] ?? '01:14'));
-    if (!preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/', $scheduleTime)) {
-        cb_error('自动检查时间格式不正确，应为 HH:MM');
-        $scheduleTime = '01:14';
-    }
-    $_POST['SCHEDULE_TIME'] = $scheduleTime;
-    [$scheduleHour, $scheduleMinute] = array_map('intval', explode(':', $scheduleTime));
-
-    if (cb_errors() === [] && isset($scheduleMap[$schedule])) {
-        $cronTime = sprintf('%d %d', $scheduleMinute, $scheduleHour);
-        // Unraid's update_cron places plugin entries in the root user's
-        // crontab, which uses the five-field user crontab format. Do not
-        // include a second user column here.
-        $text = preg_replace('/^\S+ \S+/', $cronTime, $scheduleMap[$schedule])
-            . " {$script} --quiet --trigger=cron >/dev/null 2>&1\n";
-        parse_cron_cfg('unraid-certbot', 'renew', $text);
-        cb_notice("自动续期已设置为每" . ['daily' => '天', 'weekly' => '周', 'monthly' => '月'][$schedule] . "检查一次");
+$save = cb_errors() === [];
+if ($save) {
+    if (!is_dir($cbCfgDir) && !@mkdir($cbCfgDir, 0700, true)) {
+        cb_error("无法创建配置目录 {$cbCfgDir}");
+        $save = false;
     } else {
-        parse_cron_cfg('unraid-certbot', 'renew', '');
-        cb_notice('自动续期已关闭');
+        $cfgFile = "$cbCfgDir/unraid-certbot.cfg";
+        $cfgTmp = @tempnam($cbCfgDir, '.cfg-');
+        $credTmp = $newToken !== '' ? @tempnam($cbCfgDir, '.token-') : null;
+        $cfgLines = [];
+        foreach (cb_config_keys() as $key) {
+            $value = (string)($_POST[$key] ?? '');
+            $cfgLines[] = $key . '="' . str_replace(['\\', '"'], ['\\\\', '\\"'], $value) . '"';
+        }
+        $cfgData = implode("\n", $cfgLines) . "\n";
+        $credData = "# Generated by unraid-certbot\ndns_cloudflare_api_token = {$newToken}\n";
+        if ($cfgTmp === false || @file_put_contents($cfgTmp, $cfgData) !== strlen($cfgData)
+            || !@chmod($cfgTmp, 0600)
+            || ($newToken !== '' && ($credTmp === false
+                || @file_put_contents($credTmp, $credData) !== strlen($credData)
+                || !@chmod($credTmp, 0600)
+                || (function_exists('posix_geteuid') && posix_geteuid() === 0
+                    && (!@chown($credTmp, 'root') || !@chgrp($credTmp, 'root')))))) {
+            cb_error('准备配置文件失败');
+            $save = false;
+        }
+        if ($save) {
+            $oldCfg = is_file($cfgFile) ? @file_get_contents($cfgFile) : null;
+            $oldCred = is_file($cbCredFile) ? @file_get_contents($cbCredFile) : null;
+            if ($oldCfg === false || $oldCred === false) {
+                cb_error('无法读取原配置，未提交设置');
+                $save = false;
+            }
+            $oldValues = is_string($oldCfg) ? cb_parse_cfg($cfgFile) : [];
+            $oldCron = cb_cron_text((string)($oldValues['SCHEDULE'] ?? 'off'),
+                (string)($oldValues['SCHEDULE_TIME'] ?? ''), "$cbPluginDir/scripts/renew.sh");
+            $cron = cb_cron_text($schedule, $scheduleTime, "$cbPluginDir/scripts/renew.sh");
+            if ($save && (!@rename($cfgTmp, $cfgFile)
+                || ($newToken !== '' && !@rename($credTmp, $cbCredFile))
+                || ($clearTok && is_file($cbCredFile) && !@unlink($cbCredFile))
+                || parse_cron_cfg('unraid-certbot', 'renew', $cron) === false)) {
+                $cfgRestored = cb_restore_file($cfgFile, $oldCfg);
+                $credRestored = cb_restore_file($cbCredFile, $oldCred);
+                $cronRestored = parse_cron_cfg('unraid-certbot', 'renew', $oldCron) !== false;
+                $restored = $cfgRestored && $credRestored && $cronRestored;
+                cb_error($restored ? '提交设置失败，已恢复原配置' : '提交设置失败，恢复原配置也失败，请检查配置目录');
+                $save = false;
+            }
+        }
+        if (is_string($cfgTmp) && is_file($cfgTmp)) { @unlink($cfgTmp); }
+        if (is_string($credTmp) && is_file($credTmp)) { @unlink($credTmp); }
     }
-
-    if (cb_bool($_POST['STAGING'] ?? 'no')) {
-        cb_say('⚠️ 测试环境签发的证书不受浏览器信任');
-    }
-
-    cb_notice('设置已保存');
-} else {
-    // 拒绝写入，界面保留用户输入以便修改。
-    // 注意：Token 单独存储于 cloudflare.ini，上面已写入 —— 此处需说明，
-    // 否则用户会误以为 Token 未保存，修改其他字段后重复粘贴。
-    $save = false;
-    cb_say('设置未保存，请修正上述问题', '⚠️ ');
-    cb_say('（Token 已单独保存，无需重新输入）');
 }
 
-// 设置页「设置」标签内有 #cb-update-result 区域。此脚本在 progressFrame
-// iframe 内执行，需通过 parent 调用；进度框的 addLog 输出保持不变。
-$cbResultMsg = $save ? '设置已保存' : '设置未保存';
+cb_say($save ? '设置已保存' : '设置未保存，请修正上述问题');
 echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult('
-   . ($save ? 'true' : 'false') . ',"' . $cbResultMsg . '");}</script>';
+   . ($save ? 'true' : 'false') . ',"' . ($save ? '设置已保存' : '设置未保存') . '");}</script></body></html>';

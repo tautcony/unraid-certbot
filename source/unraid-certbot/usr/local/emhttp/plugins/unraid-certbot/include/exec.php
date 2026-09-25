@@ -68,9 +68,9 @@ function write_log(string $string): void
     if ($string === '') {
         return;
     }
-    $string = str_replace("\n", "<br>", $string);
-    $string = str_replace('"', "\\\"", trim($string));
-    echo "<script>addLog(\"{$string}\");</script>";
+    $encoded = json_encode(htmlspecialchars(trim($string), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
+    echo "<script>addLog({$encoded});</script>";
     @flush();
 }
 

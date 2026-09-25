@@ -78,7 +78,13 @@ if (!function_exists('parse_cron_cfg')) {
         }
         @mkdir(dirname($file), 0700, true);
         $text = rtrim((string)$text, "\n") . "\n";
-        return @file_put_contents($file, $text, LOCK_EX) !== false;
+        $ok = @file_put_contents($file, $text, LOCK_EX) !== false;
+        $failOnce = (string)getenv('CB_DEV_CRON_FAIL_ONCE');
+        if ($failOnce !== '' && !is_file($failOnce)) {
+            @file_put_contents($failOnce, '1');
+            return false;
+        }
+        return $ok;
     }
 }
 

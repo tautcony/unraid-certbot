@@ -1,4 +1,8 @@
 #!/bin/bash
 # rc.nginx stub：本地只打印一行，不重启服务
+if [ -n "${CB_DEV_NGINX_FAIL_ONCE:-}" ] && [ ! -e "$CB_DEV_NGINX_FAIL_ONCE" ]; then
+  touch "$CB_DEV_NGINX_FAIL_ONCE"
+  exit 1
+fi
 echo "[dev] rc.nginx $*（stub，不重启服务）"
 exit 0

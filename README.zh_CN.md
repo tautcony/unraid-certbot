@@ -82,7 +82,7 @@ tail -50 /boot/config/plugins/unraid-certbot/certbot.log
 
 本地调试与沙箱结构见 [dev/README.md](dev/README.md)。
 
-发布：推送 `YYYY.MM.DD` 格式的 tag，由 GitHub Actions 自动打包并创建 Release。版本号必须使用该格式（Unraid 按 `strcmp` 比较版本号）。
+发布：推送 `YYYY.MM.DD` 格式的 tag，由 GitHub Actions 自动打包并创建 Release。版本号必须使用该格式。
 
 ## 许可
 

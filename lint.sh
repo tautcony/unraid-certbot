@@ -29,7 +29,7 @@ for f in "$ROOT"/build.sh "$ROOT"/lint.sh "$ROOT"/dev.sh "$ROOT"/dev/*.sh "$ROOT
 done
 
 # 插件代码是 php 7.4+；dev/ 下的仿真实现同样按这个版本检查语法
-PHP_FILES=("$PLUGIN_DIR"/include/*.php)
+PHP_FILES=("$PLUGIN_DIR"/include/*.php "$PLUGIN_DIR"/*.page)
 while IFS= read -r f; do PHP_FILES+=("$f"); done < <(find "$ROOT/dev" -type f -name '*.php' 2>/dev/null | sort)
 
 echo "== php =="
@@ -57,6 +57,11 @@ if command -v xmllint >/dev/null 2>&1; then
   fi
 else
   skip xmllint
+fi
+
+if command -v curl >/dev/null 2>&1 && command -v openssl >/dev/null 2>&1; then
+  echo "== regression =="
+  if bash "$ROOT/tests/regression.sh"; then ok 'tests/regression.sh'; else bad 'tests/regression.sh'; fi
 fi
 
 # xmllint 只检查 XML 是否合法，不展开实体。
