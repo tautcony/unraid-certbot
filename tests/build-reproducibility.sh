@@ -7,7 +7,9 @@ trap 'rm -rf "$WORK"' EXIT
 
 git clone -q --no-hardlinks "$ROOT" "$WORK/repo"
 git -C "$WORK/repo" checkout -q --detach "$(git -C "$ROOT" rev-parse HEAD)"
-git -C "$WORK/repo" rm -q build.sh
+if git -C "$WORK/repo" ls-files --error-unmatch build.sh >/dev/null 2>&1; then
+  git -C "$WORK/repo" rm -q build.sh
+fi
 mkdir -p "$WORK/repo/tools"
 cp "$ROOT/tools/build.sh" "$WORK/repo/tools/build.sh"
 cp "$ROOT/tools/package.py" "$WORK/repo/tools/package.py"
