@@ -53,7 +53,7 @@ $historyPage = max(1, (int)($_GET['history_page'] ?? 1));
 
 <!-- ======================= 设置 ======================= -->
 <div id="cb-pane-config" class="cb-pane"<?=$tab === 'config' ? '' : ' style="display:none"'?>>
-<blockquote id="cb-update-result" class="inline_help" aria-live="polite" style="display:none"></blockquote>
+<div id="cb-update-result" role="status" aria-live="polite" style="display:none"></div>
 <?php cb_form($cfg, $missing); ?>
 </div>
 
@@ -217,6 +217,7 @@ function cbSaveResult(ok, msg, reload, details) {
   var panel = document.getElementById('cb-update-result');
   if (panel) {
     panel.style.display = 'block';
+    panel.dataset.state = ok ? 'success' : 'error';
     panel.textContent = '';
     var heading = document.createElement('b');
     heading.textContent = msg || (ok ? <?=json_encode(cb_t('Settings saved'), JSON_UNESCAPED_UNICODE)?> : <?=json_encode(cb_t('Settings not saved'), JSON_UNESCAPED_UNICODE)?>);

@@ -145,14 +145,18 @@ function cb_t(string $text): string
         $configuredMode = (string)(cb_load_cfg()['UI_LANGUAGE'] ?? 'auto');
     }
     $mode = $GLOBALS['cb_ui_language_override'] ?? $configuredMode;
+    if ($mode === 'auto') {
+        if (function_exists('_')) {
+            return _($text);
+        }
+        $dynamix = cb_parse_cfg(cb_syspath('/boot/config/plugins/dynamix/dynamix.cfg'));
+        $mode = (string)($dynamix['locale'] ?? 'en_US');
+    }
     if ($mode === 'zh_CN' && $zh === []) {
         $file = cb_syspath('/usr/local/emhttp/languages/zh_CN/unraid-certbot.txt');
         $zh = is_file($file) ? ((array)@parse_ini_file($file, false, INI_SCANNER_RAW)) : [];
     }
-    if ($mode === 'auto' || !in_array($mode, ['zh_CN', 'en_US'], true)) {
-        return _($text);
-    }
-    if ($mode === 'en_US') {
+    if ($mode !== 'zh_CN') {
         return trim($text);
     }
     $key = preg_replace(

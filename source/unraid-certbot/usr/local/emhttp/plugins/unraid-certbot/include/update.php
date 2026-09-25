@@ -111,7 +111,7 @@ function cb_restore_file(string $path, $previous): bool
 }
 
 $allowed = array_fill_keys(cb_config_keys(), true);
-$special = ['CF_API_TOKEN_NEW' => true, 'CF_API_TOKEN_CLEAR' => true];
+$special = ['CF_API_TOKEN_NEW' => true, 'CF_API_TOKEN_CLEAR' => true, 'csrf_token' => true];
 foreach ($_POST as $key => $value) {
     if (!isset($allowed[$key]) && !isset($special[$key])) {
         cb_error(cb_t('Unsupported configuration field') . ': ' . $key);

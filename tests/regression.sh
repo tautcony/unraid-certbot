@@ -56,6 +56,14 @@ if "$ROOT/tools/build.sh" typo >/dev/null 2>&1; then fail 'invalid version accep
 
 CFG="$SANDBOX/boot/config/plugins/unraid-certbot/unraid-certbot.cfg"
 CRED="$SANDBOX/boot/config/plugins/unraid-certbot/cloudflare.ini"
+mkdir -p "$SANDBOX/boot/config/plugins/dynamix"
+printf 'locale="zh_CN"\n' > "$SANDBOX/boot/config/plugins/dynamix/dynamix.cfg"
+DIRECT_TRANSLATION="$(CB_DEV_ROOT="$SANDBOX" php -d disable_functions=_ -r '
+  define("CB_NO_CLI_OUTPUT", true);
+  require $argv[1];
+  echo cb_t("Settings not saved");
+' "$SANDBOX/usr/local/emhttp/plugins/unraid-certbot/include/status.php")"
+[ "$DIRECT_TRANSLATION" = '设置未保存' ] || fail "direct endpoint cannot translate without Unraid page helper: $DIRECT_TRANSLATION"
 printf 'LOCK_DIR="/boot"\nDOCKER="/does/not/exist"\n' >> "$CFG"
 STATUS="$(CB_DOCKER="$SANDBOX/bin/docker" "$ROOT/dev.sh" status --no-seed)"
 [[ "$STATUS" == *"docker 命令 : $SANDBOX/bin/docker"* ]] || fail 'unknown cfg key changed Docker'
@@ -171,6 +179,7 @@ json_ok() {
 CONFIG_PAGE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=config")"
 [[ "$CONFIG_PAGE" == *'id="cb-config-form"'* && "$CONFIG_PAGE" != *'target="progressFrame"'* \
    && "$CONFIG_PAGE" != *'name="#apply"'* ]] || fail 'settings form still uses progressFrame'
+[[ "$CONFIG_PAGE" == *'<div id="cb-update-result"'* ]] || fail 'save result can be rewritten by Unraid help handling'
 BEFORE="$(cksum "$CFG" "$CRED")"
 RESPONSE="$(curl -fsS -D "$WORK/update.headers" -H "$ORIGIN" -d "$BODY&LOCK_DIR=/boot&DOCKER=/bad&CF_API_TOKEN_NEW=abcdefghijabcdefghij" "$URL")"
 grep -iq '^Content-Type: application/json' "$WORK/update.headers" || fail 'save response is not JSON'
@@ -194,6 +203,10 @@ RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY" \
   || fail 'cross-origin POST accepted'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY" "$URL")"
 json_ok true "$RESPONSE" || fail 'valid POST failed'
+RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=zh_CN&csrf_token=unraid-form-token" "$URL")"
+json_ok true "$RESPONSE" || fail 'Unraid form POST with csrf_token failed'
+grep -q '^UI_LANGUAGE="zh_CN"$' "$CFG" || fail 'language setting was not saved'
+if grep -q '^csrf_token=' "$CFG"; then fail 'Unraid form token was saved in config'; fi
 if grep -Eq '^(LOCK_DIR|DOCKER)=' "$CFG"; then fail 'unknown cfg key survived save'; fi
 CRON="$SANDBOX/boot/config/plugins/unraid-certbot/renew.cron"
 BEFORE="$(cksum "$CFG" "$CRED" "$CRON")"

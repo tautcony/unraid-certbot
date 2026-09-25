@@ -154,6 +154,15 @@
   width: 100%;
   max-width: none;
   margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color, #d3d3d3);
+  border-left: 3px solid var(--orange-500, #ff8c2f);
+}
+#cb-update-result[data-state="success"] {
+  border-left-color: #25855a;
+}
+#cb-update-result ul {
+  margin: 0.5rem 0 0;
 }
 .cb-apply-action {
   text-align: center;

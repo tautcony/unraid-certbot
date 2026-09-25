@@ -32,7 +32,7 @@ async function page(path) {
     addEventListener: (name, listener) => { listeners[name] = listener; }
   };
   const panel = {
-    style: {}, children: [],
+    style: {}, dataset: {}, children: [],
     set textContent(value) { this.children = []; this._text = value; },
     appendChild(child) { this.children.push(child); }
   };
