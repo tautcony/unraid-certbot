@@ -1,11 +1,13 @@
 # 本地调试
 
 在开发机预览插件界面并运行续期流程，所有读写都在 `dev/run/` 沙箱内，不影响宿主机。
+预览会读取插件的 Unraid 语言文件。`./dev.sh doctor` 可检查本机 PHP 是否允许禁用 gettext 的内建 `_()`，以便本地翻译函数接管。
 
 ## 快速开始
 
 ```bash
-./dev.sh                # 初始化沙箱并启动预览服务器
+./dev.sh                # 初始化沙箱并启动中文预览服务器
+CB_DEV_LOCALE=en_US ./dev.sh  # 预览英文界面
 ```
 
 启动后访问 <http://127.0.0.1:8080>：
@@ -13,7 +15,7 @@
 | 地址 | 内容 |
 |---|---|
 | `/` | 调试首页，显示沙箱状态与快捷入口 |
-| `/Settings/UnraidCertbot` | 设置页（证书状态 / 设置 / 续期历史 / 运行日志） |
+| `/Settings/unraid-certbot` | 设置页（证书状态 / 设置 / 续期历史 / 运行日志） |
 
 常用命令：
 
@@ -42,6 +44,7 @@ CB_DEV_CERT_DAYS=10 ./dev.sh reset    # 生成即将过期的证书以查看告�
 | `CB_DOCKER` | docker 可执行文件 | `$CB_DEV_ROOT/bin/docker` |
 | `CB_DEV_PORT` | 预览端口 | `8080` |
 | `CB_DEV_TZ` | 时区 | 系统时区 |
+| `CB_DEV_LOCALE` | 插件界面语言 | `zh_CN` |
 | `CB_DEV_HOST` | 样例主机名 | `tower` |
 | `CB_DEV_EMAIL` | 样例邮箱 | `admin@example.com` |
 | `CB_DEV_DOMAINS` | 样例域名 | `example.com,www.example.com` |

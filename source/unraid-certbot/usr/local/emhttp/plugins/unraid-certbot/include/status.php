@@ -136,6 +136,33 @@ function cb_load_cfg(): array
     return $cfg;
 }
 
+/** 仅覆盖插件文案；auto 继续使用 Unraid 当前语言。 */
+function cb_t(string $text): string
+{
+    static $configuredMode = null;
+    static $zh = [];
+    if ($configuredMode === null) {
+        $configuredMode = (string)(cb_load_cfg()['UI_LANGUAGE'] ?? 'auto');
+    }
+    $mode = $GLOBALS['cb_ui_language_override'] ?? $configuredMode;
+    if ($mode === 'zh_CN' && $zh === []) {
+        $file = cb_syspath('/usr/local/emhttp/languages/zh_CN/unraid-certbot.txt');
+        $zh = is_file($file) ? ((array)@parse_ini_file($file, false, INI_SCANNER_RAW)) : [];
+    }
+    if ($mode === 'auto' || !in_array($mode, ['zh_CN', 'en_US'], true)) {
+        return _($text);
+    }
+    if ($mode === 'en_US') {
+        return trim($text);
+    }
+    $key = preg_replace(
+        ['/\&amp;|[\?\{\}\|\&\~\!\[\]\(\)\/\\:\*^\.\"\']|<.+?\/?>/', '/^(null|yes|no|true|false|on|off|none)$/i', '/  +/'],
+        ['', '$1.', ' '],
+        trim($text)
+    );
+    return $zh[$key] ?? $text;
+}
+
 /**
  * 规范化域名列表：逗号 / 分号 / 空白分隔，去重保序、转小写、去尾部点。
  * 返回有序数组，第一个即主域名。
@@ -399,13 +426,13 @@ function cb_fs_summary(array $info): string
 {
     $parts = [];
     if (!empty($info['fstype'])) {
-        $parts[] = _('Filesystem') . ' ' . $info['fstype'];
+        $parts[] = cb_t('Filesystem') . ' ' . $info['fstype'];
     }
     if (array_key_exists('symlink', $info) && $info['symlink'] !== null) {
-        $parts[] = $info['symlink'] ? _('Symbolic links supported') : _('Symbolic links unsupported');
+        $parts[] = $info['symlink'] ? cb_t('Symbolic links supported') : cb_t('Symbolic links unsupported');
     }
     if (array_key_exists('writable', $info) && $info['writable'] !== null) {
-        $parts[] = $info['writable'] ? _('Writable') : _('Not writable');
+        $parts[] = $info['writable'] ? cb_t('Writable') : cb_t('Not writable');
     }
     return implode(' · ', $parts);
 }
@@ -490,15 +517,15 @@ function cb_status(array $cfg): array
 function cb_days_html(?int $days): string
 {
     if ($days === null) {
-        return '<span class="grey-text">' . _('Unknown') . '</span>';
+        return '<span class="grey-text">' . cb_t('Unknown') . '</span>';
     }
     if ($days < 0) {
-        return '<span class="red-text"><b>' . _('Expired') . ' ' . abs($days) . ' ' . _('days ago') . '</b></span>';
+        return '<span class="red-text"><b>' . cb_t('Expired') . ' ' . abs($days) . ' ' . cb_t('days ago') . '</b></span>';
     }
     if ($days <= 14) {
-        return '<span class="orange-text"><b>' . $days . ' ' . _('days') . '</b></span>';
+        return '<span class="orange-text"><b>' . $days . ' ' . cb_t('days') . '</b></span>';
     }
-    return '<span class="green-text">' . $days . ' ' . _('days') . '</span>';
+    return '<span class="green-text">' . $days . ' ' . cb_t('days') . '</span>';
 }
 
 /** 转义输出 */
@@ -511,10 +538,10 @@ function cb_e($s): string
 function cb_trigger_label(string $t): string
 {
     return [
-        'manual' => _('Manual'),
-        'webgui' => _('webGUI button'),
-        'cron'   => _('Scheduled task'),
-        'boot'   => _('System startup'),
+        'manual' => cb_t('Manual'),
+        'webgui' => cb_t('webGUI button'),
+        'cron'   => cb_t('Scheduled task'),
+        'boot'   => cb_t('System startup'),
     ][$t] ?? $t;
 }
 
@@ -522,10 +549,10 @@ function cb_trigger_label(string $t): string
 function cb_schedule_label(string $s): string
 {
     return [
-        'daily'   => _('Check daily'),
-        'weekly'  => _('Check weekly'),
-        'monthly' => _('Check monthly'),
-        'off'     => _('Disabled'),
+        'daily'   => cb_t('Check daily'),
+        'weekly'  => cb_t('Check weekly'),
+        'monthly' => cb_t('Check monthly'),
+        'off'     => cb_t('Disabled'),
     ][$s] ?? $s;
 }
 
@@ -550,18 +577,18 @@ function cb_unraid_name(): string
 function cb_ago(?int $ts): string
 {
     if ($ts === null || $ts <= 0) {
-        return _('Unknown');
+        return cb_t('Unknown');
     }
     $diff = time() - $ts;
     if ($diff < 0) {
-        return _('In the future');
+        return cb_t('In the future');
     }
-    foreach ([[31536000, _('year')], [2592000, _('month')], [86400, _('day')], [3600, _('hour')], [60, _('minute')]] as [$unit, $label]) {
+    foreach ([[31536000, cb_t('year')], [2592000, cb_t('month')], [86400, cb_t('day')], [3600, cb_t('hour')], [60, cb_t('minute')]] as [$unit, $label]) {
         if ($diff >= $unit) {
-            return floor($diff / $unit) . " {$label} " . _('ago');
+            return floor($diff / $unit) . " {$label} " . cb_t('ago');
         }
     }
-    return _('Just now');
+    return cb_t('Just now');
 }
 
 // 被其它脚本 require 时应先 define('CB_NO_CLI_OUTPUT', true)，避免污染它们的输出。

@@ -99,6 +99,7 @@ printf '%s\n' 'unraid-certbot dev sandbox' > "$DEV_ROOT/$MARKER"
 
 # -n: 已存在的软链直接替换，不当成目录下钻
 ln -sfn "$PLUGIN_SRC"                                           "$DOCROOT/plugins/unraid-certbot"
+ln -sfn "$ROOT/source/unraid-certbot/usr/local/emhttp/languages" "$DOCROOT/languages"
 ln -sfn "$ROOT/dev/emhttp/logging.htm"                          "$DOCROOT/logging.htm"
 ln -sfn "$ROOT/dev/emhttp/plugins/dynamix/include/Wrappers.php" "$DOCROOT/plugins/dynamix/include/Wrappers.php"
 ln -sfn "$ROOT/dev/bin/docker"                                  "$DEV_ROOT/bin/docker"

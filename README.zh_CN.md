@@ -25,6 +25,7 @@ plugin install https://raw.githubusercontent.com/tautcony/unraid-certbot/master/
 
 | 配置项 | 说明 |
 |---|---|
+| 界面语言 | 跟随 Unraid（默认）、简体中文或 English，仅影响本插件界面 |
 | Cloudflare API Token | 用于 DNS-01 验证，保存于 `cloudflare.ini`，权限 600 |
 | 邮箱 | 接收 Let's Encrypt 证书到期提醒 |
 | Unraid 主机名 | 必须与 Unraid 服务器名称一致，否则 webGUI 不会加载新证书 |
@@ -76,13 +77,17 @@ tail -50 /boot/config/plugins/unraid-certbot/certbot.log
 
 ```bash
 ./lint.sh               # 静态检查（与 CI 相同）
-./build.sh              # 打包（版本号取自 VERSION）
+tools/build.sh --local  # 打包当前工作区，供本地测试
+tools/build.sh          # 从已提交源码构建可复现包
+tools/release-new.sh    # 将当前 VERSION 作为新 tag 发布
+tools/republish-old.sh 2026.09.25 # 重发已有版本
 ./dev.sh                # 启动本地预览：http://127.0.0.1:8080
 ```
 
 本地调试与沙箱结构见 [dev/README.md](dev/README.md)。
+打包与发布命令见 [tools/README.md](tools/README.md)。
 
-发布：先提交源码、构建脚本和 `VERSION`，再从这个提交运行 `./build.sh`，即可与 CI 的包比较 SHA256。推送 `YYYY.MM.DD` 格式的 tag 后，GitHub Actions 从同一提交重新打包并创建 Release。本地构建需要 Docker；两边使用同一个固定镜像。
+发布：先提交源码、构建脚本和 `VERSION`，再运行 `tools/build.sh`，即可与 CI 的包比较 SHA256。`tools/release-new.sh` 推送新 tag 后自动触发流水线。`tools/republish-old.sh` 针对已存在的 tag 补发缺失的 Release 资产，不会把旧版 `.plg` 写回默认分支；已发布的资产不覆盖。本地构建需要 Docker。
 
 ## 许可
 

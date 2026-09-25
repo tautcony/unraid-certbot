@@ -58,6 +58,9 @@ if [ "$CMD" = "doctor" ]; then
   php -r 'exit(version_compare(PHP_VERSION, "7.4", ">=") ? 0 : 1);' \
     && printf '  ok   %-8s %s\n' "php 版本" "$(php -r 'echo PHP_VERSION;')" \
     || { printf '  FAIL php 版本 %s，需要 7.4+\n' "$(php -r 'echo PHP_VERSION;')"; fail=1; }
+  php -d disable_functions=_ -r 'exit(function_exists("_") ? 1 : 0);' \
+    && printf '  ok   %-8s %s\n' "界面翻译" "可接管 _()" \
+    || { printf '  FAIL %-8s %s\n' "界面翻译" "当前 PHP 无法禁用内建 _()"; fail=1; }
   for c in xmllint; do
     command -v "$c" >/dev/null 2>&1 \
       && printf '  ok   %-8s %s\n' "$c" "$(command -v "$c")" \
@@ -120,12 +123,18 @@ case "$CMD" in
 
   serve)
     command -v php >/dev/null 2>&1 || { echo "错误：需要 php 才能启动预览服务器" >&2; exit 1; }
+    php -d disable_functions=_ -r 'exit(function_exists("_") ? 1 : 0);' || {
+      echo "错误：当前 PHP 无法禁用内建 _()，本地预览无法模拟 Unraid 翻译" >&2
+      exit 1
+    }
     echo "==> 预览地址： http://127.0.0.1:${PORT}"
-    echo "    设置页   ： http://127.0.0.1:${PORT}/Settings/UnraidCertbot"
+    echo "    设置页   ： http://127.0.0.1:${PORT}/Settings/unraid-certbot"
+    echo "    界面语言 ： ${CB_DEV_LOCALE:-zh_CN}"
     echo "    沙箱目录 ： ${DEV_ROOT}"
     echo "    停止服务 ： Ctrl-C"
     echo
-    exec php -S "127.0.0.1:${PORT}" -t "$DOCROOT" "$ROOT/dev/server.php"
+    # PHP 的 gettext 扩展也定义了 _()；预览时交由 Wrappers.php 模拟 Unraid 的 _()。
+    exec php -d disable_functions=_ -S "127.0.0.1:${PORT}" -t "$DOCROOT" "$ROOT/dev/server.php"
     ;;
 
   *)

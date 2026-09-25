@@ -32,9 +32,9 @@ if (!isset($tabs[$tab])) {
 // 缺配置时给出待办清单，避免用户遗漏必填项
 $missing = [];
 if (!$st['configured']['token'])   $missing[] = 'Cloudflare API Token';
-if (!$st['configured']['email'])   $missing[] = _('Email');
-if (!$st['configured']['host'])    $missing[] = _('Unraid Hostname');
-if (!$st['configured']['domains']) $missing[] = _('Domains');
+if (!$st['configured']['email'])   $missing[] = cb_t('Email');
+if (!$st['configured']['host'])    $missing[] = cb_t('Unraid Hostname');
+if (!$st['configured']['domains']) $missing[] = cb_t('Domains');
 
 $log = cb_log_tail(400);
 $historyPage = max(1, (int)($_GET['history_page'] ?? 1));
@@ -42,7 +42,7 @@ $historyPage = max(1, (int)($_GET['history_page'] ?? 1));
 
 <div id="cb-tabs">
   <?php foreach ($tabs as $key => $label): ?>
-  <button type="button" class="<?=$key === $tab ? 'active' : ''?>" onclick="cbTab('<?=$key?>')"><?=_($label)?></button>
+  <button type="button" class="<?=$key === $tab ? 'active' : ''?>" onclick="cbTab('<?=$key?>')"><?=cb_t($label)?></button>
   <?php endforeach; ?>
 </div>
 
@@ -65,10 +65,10 @@ $historyPage = max(1, (int)($_GET['history_page'] ?? 1));
 <!-- ======================= 运行日志 ======================= -->
 <div id="cb-pane-log" class="cb-pane"<?=$tab === 'log' ? '' : ' style="display:none"'?>>
 <p class="grey-text" style="font-size:12px;margin-bottom:6px">
-  <?=_('Shows the last 400 lines of')?> <code>/boot/config/plugins/<?=$cb?>/certbot.log</code><?=_('. The log is truncated automatically when it exceeds 1 MiB.')?>
+  <?=cb_t('Shows the last 400 lines of')?> <code>/boot/config/plugins/<?=$cb?>/certbot.log</code><br><?=cb_t('Logs are truncated automatically after 1 MiB.')?>
 </p>
 <?php if (trim($log) === ''): ?>
-<blockquote class="inline_help" style="display:block"><?=_('No log entries.')?></blockquote>
+<blockquote class="inline_help" style="display:block"><?=cb_t('No log entries.')?></blockquote>
 <?php else: ?>
 <div id="cb-log-content" class="cb-log"><?=cb_e($log)?></div>
 <?php endif; ?>
@@ -83,12 +83,13 @@ var cbDirty   = false;   // 「设置」标签中存在未保存的改动
 function cbTab(name) {
   if (name === cbTabNow) { return; }
   if (cbTabNow === 'config' && cbDirty) {
-    if (!window.confirm(<?=json_encode(_('You have unsaved changes. Leave this tab?'), JSON_UNESCAPED_UNICODE)?>)) {
+    if (!window.confirm(<?=json_encode(cb_t('You have unsaved changes. Leave this tab?'), JSON_UNESCAPED_UNICODE)?>)) {
       return;
     }
   }
   var url = new URL(location.href);
   url.searchParams.set('tab', name);
+  url.searchParams.delete('history_page');
   url.searchParams.set('_', Date.now());
   location.assign(url.toString());
 }
@@ -96,7 +97,11 @@ function cbTab(name) {
 function cbHistoryPage(page) {
   var url = new URL(location.href);
   url.searchParams.set('tab', 'history');
-  url.searchParams.set('history_page', String(page));
+  if (page <= 1) {
+    url.searchParams.delete('history_page');
+  } else {
+    url.searchParams.set('history_page', String(page));
+  }
   url.searchParams.set('_', Date.now());
   location.assign(url.toString());
 }
@@ -127,13 +132,21 @@ function cbMarkDirty(form) {
 document.addEventListener('input',  function (e) { cbEnableApply(e.target.form); cbMarkDirty(e.target.form); }, true);
 document.addEventListener('change', function (e) { cbEnableApply(e.target.form); cbMarkDirty(e.target.form); }, true);
 
-// 地址栏只保留 tab=，不要留下缓存绕行用的 _ 参数
+// 清除缓存参数和不属于当前标签的分页参数。
 try {
   var clean = new URL(location.href);
+  var changed = false;
   if (clean.searchParams.has('_')) {
     clean.searchParams.delete('_');
-    history.replaceState(null, '', clean.toString());
+    changed = true;
   }
+  if (cbTabNow !== 'history' || Number(clean.searchParams.get('history_page')) <= 1) {
+    if (clean.searchParams.has('history_page')) {
+      clean.searchParams.delete('history_page');
+      changed = true;
+    }
+  }
+  if (changed) { history.replaceState(null, '', clean.toString()); }
 } catch (e) {}
 
 // 「显示 / 隐藏」Token
@@ -142,13 +155,14 @@ function cbToggle(id, btn) {
   if (!el) return;
   var show = el.type === 'password';
   el.type = show ? 'text' : 'password';
-  btn.value = show ? '<?=_('Hide')?>' : '<?=_('Show')?>';
+  btn.value = show ? '<?=cb_t('Hide')?>' : '<?=cb_t('Show')?>';
 }
 
 // 重取当前标签
 function cbReload(saved) {
   var url = new URL(location.href);
   url.searchParams.set('tab', cbTabNow);
+  if (cbTabNow !== 'history') { url.searchParams.delete('history_page'); }
   url.searchParams.set('_', Date.now());
   if (saved) { url.searchParams.set('_saved', '1'); }
   location.replace(url.toString());
@@ -159,7 +173,7 @@ function cbReload(saved) {
   try {
     var q = new URL(location.href).searchParams;
     if (!q.has('_saved')) { return; }
-    cbSaveResult(true, <?=json_encode(_('Settings saved'), JSON_UNESCAPED_UNICODE)?>);
+    cbSaveResult(true, <?=json_encode(cb_t('Settings saved'), JSON_UNESCAPED_UNICODE)?>, false);
     q.delete('_saved');
     history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : ''));
   } catch (e) {}
@@ -168,9 +182,9 @@ function cbReload(saved) {
 // 续期类动作在对话框中执行，输出经 addLog
 function cbRun(action) {
   var titles = {
-    renew:  '<?=_('Check and renew')?>',
-    force:  '<?=_('Force renewal')?>',
-    docker: '<?=_('Check Docker environment')?>'
+    renew:  '<?=cb_t('Check and renew')?>',
+    force:  '<?=cb_t('Force renewal')?>',
+    docker: '<?=cb_t('Check Docker environment')?>'
   };
   openBox('/plugins/<?=$cb?>/include/exec.php?action=' + action, titles[action] || action, 820, 560);
 }
@@ -199,31 +213,14 @@ function cbBindHelp() {
 cbBindHelp();
 
 // 保存结束后：显示结果。
-function cbSaveResult(ok, msg) {
+function cbSaveResult(ok, msg, reload) {
   var panel = document.getElementById('cb-update-result');
   if (panel) {
     panel.style.display = 'block';
-    panel.innerHTML = '<b>' + (msg || (ok ? '<?=_('Settings saved')?>' : '<?=_('Settings not saved')?>')) + '</b>';
+    panel.innerHTML = '<b>' + (msg || (ok ? '<?=cb_t('Settings saved')?>' : '<?=cb_t('Settings not saved')?>')) + '</b>';
   }
   if (!ok) { return; }
   cbDirty = false;
-  cbReloadWhenSaved(true);
-}
-
-// 保存（表单 POST 至 progressFrame）完成后重取本页
-function cbReloadWhenSaved(saved) {
-  var frame = document.getElementById('progressFrame');
-  if (!frame || frame.dataset.cbWatching === '1') { return; }
-  frame.dataset.cbWatching = '1';
-  var fire = function () {
-    var doc = null;
-    try { doc = frame.contentDocument; } catch (e) { return; }
-    if (!doc || !doc.body) { return; }
-    if (!/Settings saved|Save successful/.test(doc.body.innerHTML)) { return; }  // Do not reload after a failed save.
-    frame.dataset.cbWatching = '';
-    setTimeout(function () { cbReload(saved); }, 1200);   // 让提示短暂显示
-  };
-  frame.addEventListener('load', fire);
-  fire();   // 提交可能已经完成
+  if (reload !== false) { setTimeout(function () { cbReload(true); }, 1200); }
 }
 </script>

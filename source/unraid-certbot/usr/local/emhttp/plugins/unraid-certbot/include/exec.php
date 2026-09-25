@@ -28,16 +28,16 @@ header('Content-Type: text/html; charset=utf-8');
  * 命令固定为 renew.sh，参数均为预设常量。
  */
 $actions = [
-    'renew'  => [['--trigger=webgui'],                 _('Check and renew now')],
-    'force'  => [['--force', '--trigger=webgui'],      _('Force renewal')],
-    'status' => [['--status'],                         _('View current status')],
-    'docker' => [[],                                   _('Check Docker environment')],
+    'renew'  => [['--trigger=webgui'],                 cb_t('Check and renew now')],
+    'force'  => [['--force', '--trigger=webgui'],      cb_t('Force renewal')],
+    'status' => [['--status'],                         cb_t('View current status')],
+    'docker' => [[],                                   cb_t('Check Docker environment')],
 ];
 
 $action = (string)($_GET['action'] ?? $_POST['action'] ?? 'renew');
 if (!isset($actions[$action])) {
     http_response_code(400);
-    echo '<p style="color:#c33;font-family:sans-serif">' . _('Unsupported action') . ': ' . htmlspecialchars($action) . '</p>';
+    echo '<p style="color:#c33;font-family:sans-serif">' . cb_t('Unsupported action') . ': ' . htmlspecialchars($action) . '</p>';
     exit;
 }
 

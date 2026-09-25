@@ -107,15 +107,17 @@ $allowed = array_fill_keys(cb_config_keys(), true);
 $special = ['CF_API_TOKEN_NEW' => true, 'CF_API_TOKEN_CLEAR' => true];
 foreach ($_POST as $key => $value) {
     if (!isset($allowed[$key]) && !isset($special[$key])) {
-        cb_error('不支持的配置字段：' . $key);
+        cb_error(cb_t('Unsupported configuration field') . ': ' . $key);
     } elseif (is_array($value)) {
-        cb_error('配置字段格式不正确：' . $key);
+        cb_error(cb_t('Invalid configuration field format') . ': ' . $key);
         $_POST[$key] = '';
     }
 }
 if (cb_errors() !== []) {
-    cb_say('设置未保存，请修正上述问题');
-    echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult(false,"设置未保存");}</script></body></html>';
+    cb_say(cb_t('Settings not saved, correct the errors above'));
+    echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult(false,'
+       . json_encode(cb_t('Settings not saved'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)
+       . ');}</script></body></html>';
     exit;
 }
 
@@ -127,15 +129,15 @@ $rawDomains = (string)($_POST['DOMAINS'] ?? '');
 $domains    = cb_parse_domains($rawDomains);
 
 if (empty($domains)) {
-    cb_error('域名列表不能为空');
+    cb_error(cb_t('Enter at least one domain'));
 } else {
     $bad = array_filter($domains, fn($d) => !cb_valid_domain($d));
     if (!empty($bad)) {
-        cb_error('域名格式不正确：' . implode(', ', $bad));
+        cb_error(cb_t('Invalid domains') . ': ' . implode(', ', $bad));
     } else {
         $_POST['DOMAINS'] = implode(',', $domains);
         if (count($domains) > 1) {
-            cb_notice('已识别 ' . count($domains) . ' 个域名，主域名：' . $domains[0]);
+            cb_notice(sprintf(cb_t('Recognized %d domains, primary domain: %s'), count($domains), $domains[0]));
         }
     }
 }
@@ -146,9 +148,9 @@ if (empty($domains)) {
 
 $email = trim((string)($_POST['ACME_EMAIL'] ?? ''));
 if ($email === '') {
-    cb_error('请填写邮箱');
+    cb_error(cb_t('Enter an email address'));
 } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    cb_error("邮箱格式不正确：{$email}");
+    cb_error(cb_t('Invalid email address') . ': ' . $email);
 } else {
     $_POST['ACME_EMAIL'] = $email;
 }
@@ -159,9 +161,9 @@ if ($email === '') {
 
 $host = trim((string)($_POST['UNRAID_HOSTNAME'] ?? ''));
 if ($host === '') {
-    cb_error('请填写 Unraid 主机名');
+    cb_error(cb_t('Enter the Unraid hostname'));
 } elseif (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/', $host)) {
-    cb_error("主机名格式不正确：{$host}");
+    cb_error(cb_t('Invalid hostname') . ': ' . $host);
 } else {
     $_POST['UNRAID_HOSTNAME'] = $host;
 }
@@ -172,7 +174,7 @@ if ($host === '') {
 
 $prop = (int)($_POST['PROPAGATION'] ?? 60);
 if ($prop < 10 || $prop > 900) {
-    cb_error("DNS 传播等待时间必须在 10–900 秒之间，当前为 {$prop}");
+    cb_error(sprintf(cb_t('DNS propagation wait must be 10 to 900 seconds, current value: %d'), $prop));
 } else {
     $_POST['PROPAGATION'] = (string)$prop;
 }
@@ -188,7 +190,7 @@ if ($certDir === '') {
     $certDir = rtrim($certDir, '/') ?: '/';
 }
 if (!cb_valid_cert_dir($certDir)) {
-    cb_error("证书目录必须位于 /mnt/user/appdata 的普通子目录且不能经过符号链接：{$certDir}");
+    cb_error(cb_t('Certificate directory must be a regular subdirectory of /mnt/user/appdata without symbolic links') . ': ' . $certDir);
 } else {
     // .cfg 中存储 Unraid 上的路径，落盘时映射至沙箱
     $_POST['CERT_DIR'] = $certDir;
@@ -202,10 +204,10 @@ if (!cb_valid_cert_dir($certDir)) {
         cb_error(str_replace($realCertDir, $certDir, $fsReason));
     } else {
         $summary = cb_fs_summary($fsInfo);
-        cb_notice("证书目录可用：{$certDir}" . ($summary !== '' ? "（{$summary}）" : ''));
+        cb_notice(cb_t('Certificate directory available') . ': ' . $certDir . ($summary !== '' ? " ({$summary})" : ''));
         if ($fsInfo['symlink'] === null) {
             // 目录刚创建但无法检测（如父目录只读），续期前将重新检查
-            cb_say('⚠️ 未能完成目录自检，续期前将重新检查');
+            cb_say(cb_t('Directory check incomplete, it will run again before renewal'));
         }
     }
 }
@@ -222,29 +224,35 @@ foreach (['RESTART_NGINX', 'STAGING'] as $flag) {
 $newToken = trim((string)($_POST['CF_API_TOKEN_NEW'] ?? ''));
 $clearTok = cb_bool($_POST['CF_API_TOKEN_CLEAR'] ?? 'no');
 if ($clearTok && $newToken !== '') {
-    cb_error('不能同时填写和清除 Token');
+    cb_error(cb_t('Cannot enter and clear the token at the same time'));
 } elseif ($newToken !== '' && !preg_match('/^[A-Za-z0-9_\-]{20,100}$/', $newToken)) {
-    cb_error('Cloudflare API Token 格式不正确');
+    cb_error(cb_t('Invalid Cloudflare API Token'));
 } elseif (!$clearTok && $newToken === '' && !cb_has_token()) {
-    cb_error('请填写 Cloudflare API Token');
+    cb_error(cb_t('Enter a Cloudflare API Token'));
 }
 
 $schedule = (string)($_POST['SCHEDULE'] ?? 'daily');
 $schedules = ['daily', 'weekly', 'monthly', 'off'];
 if (!in_array($schedule, $schedules, true)) {
-    cb_error('自动检查频率不正确');
+    cb_error(cb_t('Invalid automatic check frequency'));
 }
 $scheduleTime = trim((string)($_POST['SCHEDULE_TIME'] ?? '01:14'));
 if (!preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/', $scheduleTime)) {
-    cb_error('自动检查时间格式不正确，应为 HH:MM');
+    cb_error(cb_t('Invalid automatic check time, expected HH:MM'));
 }
 $_POST['SCHEDULE'] = $schedule;
 $_POST['SCHEDULE_TIME'] = $scheduleTime;
 
+$uiLanguage = (string)($_POST['UI_LANGUAGE'] ?? 'auto');
+if (!in_array($uiLanguage, ['auto', 'zh_CN', 'en_US'], true)) {
+    cb_error(cb_t('Invalid interface language'));
+}
+$_POST['UI_LANGUAGE'] = $uiLanguage;
+
 $save = cb_errors() === [];
 if ($save) {
     if (!is_dir($cbCfgDir) && !@mkdir($cbCfgDir, 0700, true)) {
-        cb_error("无法创建配置目录 {$cbCfgDir}");
+        cb_error(cb_t('Cannot create configuration directory') . ': ' . $cbCfgDir);
         $save = false;
     } else {
         $cfgFile = "$cbCfgDir/unraid-certbot.cfg";
@@ -264,14 +272,14 @@ if ($save) {
                 || !@chmod($credTmp, 0600)
                 || (function_exists('posix_geteuid') && posix_geteuid() === 0
                     && (!@chown($credTmp, 'root') || !@chgrp($credTmp, 'root')))))) {
-            cb_error('准备配置文件失败');
+            cb_error(cb_t('Could not prepare configuration files'));
             $save = false;
         }
         if ($save) {
             $oldCfg = is_file($cfgFile) ? @file_get_contents($cfgFile) : null;
             $oldCred = is_file($cbCredFile) ? @file_get_contents($cbCredFile) : null;
             if ($oldCfg === false || $oldCred === false) {
-                cb_error('无法读取原配置，未提交设置');
+                cb_error(cb_t('Could not read the previous configuration and settings were not saved'));
                 $save = false;
             }
             $oldValues = is_string($oldCfg) ? cb_parse_cfg($cfgFile) : [];
@@ -286,7 +294,8 @@ if ($save) {
                 $credRestored = cb_restore_file($cbCredFile, $oldCred);
                 $cronRestored = parse_cron_cfg('unraid-certbot', 'renew', $oldCron) !== false;
                 $restored = $cfgRestored && $credRestored && $cronRestored;
-                cb_error($restored ? '提交设置失败，已恢复原配置' : '提交设置失败，恢复原配置也失败，请检查配置目录');
+                cb_error($restored ? cb_t('Save failed and previous configuration restored')
+                    : cb_t('Save and recovery failed, check the configuration directory'));
                 $save = false;
             }
         }
@@ -295,6 +304,12 @@ if ($save) {
     }
 }
 
-cb_say($save ? '设置已保存' : '设置未保存，请修正上述问题');
+if ($save) {
+    $GLOBALS['cb_ui_language_override'] = $uiLanguage;
+}
+cb_say($save ? cb_t('Settings saved') : cb_t('Settings not saved, correct the errors above'));
 echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult('
-   . ($save ? 'true' : 'false') . ',"' . ($save ? '设置已保存' : '设置未保存') . '");}</script></body></html>';
+   . ($save ? 'true' : 'false') . ','
+   . json_encode(cb_t($save ? 'Settings saved' : 'Settings not saved'),
+       JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)
+   . ');}</script></body></html>';

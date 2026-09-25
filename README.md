@@ -25,6 +25,7 @@ Create a token in **My Profile -> API Tokens -> Create Token** with:
 
 | Setting | Description |
 |---|---|
+| Interface language | Follow Unraid (default), Simplified Chinese, or English; affects this plugin only |
 | Cloudflare API Token | Used for DNS-01 validation; stored in `cloudflare.ini` with mode 600 |
 | Email | Receives Let's Encrypt expiry notices |
 | Unraid Hostname | Must match the Unraid server name or the webGUI will not load the new certificate |
@@ -76,13 +77,17 @@ Source is under `source/unraid-certbot/` and maps to `/usr/local/emhttp/` on Unr
 
 ```bash
 ./lint.sh               # Run the same static checks as CI
-./build.sh              # Build the package using VERSION
+tools/build.sh --local  # Build the current worktree for local testing
+tools/build.sh          # Reproducible package from committed source
+tools/release-new.sh    # Publish the current VERSION as a new tag
+tools/republish-old.sh 2026.09.25 # Repair an existing release
 ./dev.sh                # Start the local preview at http://127.0.0.1:8080
 ```
 
 See [dev/README.md](dev/README.md) for the local sandbox.
+See [tools/README.md](tools/README.md) for build and release commands.
 
-Push a `YYYY.MM.DD` tag to let GitHub Actions build and publish a release. To compare the local package with CI, commit the source and `VERSION` first, then run `./build.sh` from that commit. Both builds use the same pinned packaging image. Docker is required for local builds.
+Commit the source and `VERSION` before `tools/build.sh` or `tools/release-new.sh`. The new-release command pushes the version tag, which starts GitHub Actions. `tools/republish-old.sh` dispatches a run against an existing tag; it repairs a missing Release asset without changing the default branch's installer. Existing assets remain immutable. Docker is required for local builds.
 
 ## License
 

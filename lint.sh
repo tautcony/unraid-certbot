@@ -17,7 +17,7 @@ skip() { printf '  --   %s（未安装，跳过）\n' "$1"; }
 rel() { printf '%s' "${1#"$ROOT"/}"; }
 
 echo "== bash =="
-for f in "$ROOT"/build.sh "$ROOT"/lint.sh "$ROOT"/dev.sh "$ROOT"/dev/*.sh "$ROOT"/dev/bin/* \
+for f in "$ROOT"/tools/*.sh "$ROOT"/lint.sh "$ROOT"/dev.sh "$ROOT"/dev/*.sh "$ROOT"/dev/bin/* \
          "$PLUGIN_DIR"/scripts/*.sh "$PLUGIN_DIR"/event/*; do
   [ -f "$f" ] || continue
   if bash -n "$f" 2>/dev/null; then
@@ -43,6 +43,8 @@ if command -v php >/dev/null 2>&1; then
       php -l "$f"
     fi
   done
+  echo "== translations =="
+  if php "$ROOT/tests/translations.php"; then ok 'tests/translations.php'; else bad 'tests/translations.php'; fi
 else
   skip php
 fi

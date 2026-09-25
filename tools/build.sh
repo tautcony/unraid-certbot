@@ -2,18 +2,20 @@
 #
 # unraid-certbot 打包脚本
 #
-#   ./build.sh              # 用 VERSION 文件里的版本号打包
-#   ./build.sh 2026.10.01   # 指定版本号打包（需与已提交的 VERSION 一致）
+#   tools/build.sh                 # 从已提交的源码构建可复现的发布包
+#   tools/build.sh --local         # 从当前工作区构建本地测试包
+#   tools/build.sh --revision 2    # 同版本重发时生成新的包修订号
+#   tools/build.sh 2026.10.01     # 校验 VERSION 并构建指定版本
 #
 # 产出：
 #   dist/unraid-certbot-<版本>-noarch-1.txz   上传到 GitHub Release
 #   unraid-certbot.plg                        已填入版本号与校验和
 #
-# 发布：先提交源码、build.sh 和 VERSION，再运行本脚本；从同一提交打 tag。
+# 发布包从同一提交打 tag；--local 可包含尚未提交的源码。
 #
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAME="unraid-certbot"
 SRC="${ROOT}/source/${NAME}"
 STAGE="${ROOT}/build/stage"
@@ -31,8 +33,24 @@ else
   exit 1
 fi
 
-if [ "${1:-$VERSION}" != "$VERSION" ]; then
-  echo "错误：先将版本号写入 VERSION 并提交，再运行 build.sh" >&2
+LOCAL=no
+REVISION=1
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --local) LOCAL=yes; shift ;;
+    --revision)
+      [ "$#" -ge 2 ] || { echo '错误：--revision 需要正整数' >&2; exit 1; }
+      REVISION="$2"
+      shift 2 ;;
+    *) break ;;
+  esac
+done
+if [ "$#" -gt 1 ] || [ "${1:-$VERSION}" != "$VERSION" ]; then
+  echo "错误：指定版本必须与 VERSION 一致" >&2
+  exit 1
+fi
+if ! [[ "$REVISION" =~ ^[1-9][0-9]*$ ]]; then
+  echo '错误：包修订号必须是正整数' >&2
   exit 1
 fi
 
@@ -42,14 +60,16 @@ if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$'; then
 fi
 
 # 构建输入必须已经提交；否则发布提交后时间锚点会发生变化。
-if ! git -C "$ROOT" diff --quiet HEAD -- source/"$NAME" build.sh VERSION tools/package.py ||
-   [ -n "$(git -C "$ROOT" ls-files --others --exclude-standard -- source/"$NAME" tools/package.py)" ]; then
-  echo "错误：先提交源码、构建脚本和 VERSION 的变更，再打包" >&2
-  exit 1
+if [ "$LOCAL" = no ]; then
+  if ! git -C "$ROOT" diff --quiet HEAD -- source/"$NAME" tools/build.sh tools/package.py VERSION ||
+     [ -n "$(git -C "$ROOT" ls-files --others --exclude-standard -- source/"$NAME" tools/build.sh tools/package.py)" ]; then
+    echo "错误：发布打包前先提交源码、打包脚本和 VERSION；测试当前工作区请用 --local" >&2
+    exit 1
+  fi
 fi
 
-PKG="${NAME}-${VERSION}-noarch-1.txz"
-echo "==> 打包 ${NAME} ${VERSION}"
+PKG="${NAME}-${VERSION}-noarch-${REVISION}.txz"
+echo "==> 打包 ${NAME} ${VERSION} ($([ "$LOCAL" = yes ] && echo local || echo committed))"
 
 # ---------------------------------------------------------------------------
 # 准备目录
@@ -60,9 +80,13 @@ echo "==> 打包 ${NAME} ${VERSION}"
 rm -rf "${ROOT}/build"
 mkdir -p "$STAGE" "$DIST"
 
-# Slackware 包的内容来自提交本身，避免本机忽略文件混入包。
-git -C "$ROOT" archive HEAD "source/${NAME}/usr" | \
-  tar -xf - -C "$STAGE" --strip-components=2
+if [ "$LOCAL" = yes ]; then
+  cp -R "${SRC}/usr" "$STAGE/usr"
+else
+  # 发布包只取提交内容，避免本机文件混入。
+  git -C "$ROOT" archive HEAD "source/${NAME}/usr" | \
+    tar -xf - -C "$STAGE" --strip-components=2
+fi
 
 PLUGIN_ON_ROOT="${STAGE}/usr/local/emhttp/plugins/${NAME}"
 [ -d "$PLUGIN_ON_ROOT" ] || { echo "错误：源码树结构不对，缺少 ${PLUGIN_ON_ROOT}" >&2; exit 1; }
@@ -112,7 +136,7 @@ chmod 0755 "${STAGE}/install/doinst.sh"
 # ---------------------------------------------------------------------------
 
 # 宿主机只传入暂存树；固定镜像统一写出 tar.xz 字节。
-COMMIT_EPOCH="$(git -C "$ROOT" log -1 --format=%ct HEAD -- source/"$NAME" build.sh VERSION tools/package.py)"
+COMMIT_EPOCH="$(git -C "$ROOT" log -1 --format=%ct HEAD -- source/"$NAME" tools/build.sh tools/package.py VERSION)"
 [ -n "$COMMIT_EPOCH" ] || { echo "错误：无法获取构建输入的提交时间" >&2; exit 1; }
 command -v docker >/dev/null 2>&1 || { echo "错误：打包需要 Docker" >&2; exit 1; }
 PACKAGE_IMAGE="python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d"
@@ -143,6 +167,7 @@ echo "==> SHA256 ${SHA}"
 
 # 用临时文件再覆盖，避免 sed -i 在 macOS/Linux 上的参数差异
 sed -e "s|^<!ENTITY version   \"[^\"]*\">|<!ENTITY version   \"${VERSION}\">|" \
+    -e "s|^<!ENTITY pkgfile   \"[^\"]*\">|<!ENTITY pkgfile   \"\&name;-\&version;-noarch-${REVISION}.txz\">|" \
     -e "s|<MD5>[^<]*</MD5>|<MD5>${MD5}</MD5>|" \
     -e "s|<SHA256>[^<]*</SHA256>|<SHA256>${SHA}</SHA256>|" \
     "$PLG" > "${PLG}.tmp"
@@ -163,8 +188,8 @@ echo ""
 echo "✅ 完成"
 echo ""
 echo "接下来："
-echo "  1. 核对本地包的 SHA256；tag 必须指向本次构建输入所在提交"
-echo "  2. 推送 ${VERSION} tag，由 CI 从同一提交重新打包并发布"
+echo "  1. 核对本地包的 SHA256；发布包的 tag 必须指向同一提交"
+echo "  2. 用 tools/release-new.sh ${VERSION} 推送 tag 并触发 CI"
 echo "  3. Unraid 上的安装地址："
 echo "     https://raw.githubusercontent.com/tautcony/${NAME}/master/${NAME}.plg"
 echo ""

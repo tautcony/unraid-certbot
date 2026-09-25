@@ -3,9 +3,9 @@
  * 本地预览服务器（php -S 的路由脚本）。
  *
  *   ./dev.sh                                              # 初始化沙箱并启动
- *   php -S 127.0.0.1:8080 -t dev/run/usr/local/emhttp dev/server.php
+ *   php -d disable_functions=_ -S 127.0.0.1:8080 -t dev/run/usr/local/emhttp dev/server.php
  *
- * 路由：/（调试首页）、/Settings/UnraidCertbot（设置页）、插件端点
+ * 路由：/（调试首页）、/Settings/unraid-certbot（设置页）、插件端点
  * （/plugins/unraid-certbot/**.php）；
  * 沙箱里真实存在的其它文件交给内置服务器。
  */
@@ -42,6 +42,11 @@ if ($devTz !== '') {
 $docroot = $DOCROOT;
 $_SERVER['DOCUMENT_ROOT'] = $DOCROOT;
 
+if (function_exists('_')) {
+    http_response_code(500);
+    exit('Start the preview with ./dev.sh so its translation function can load.');
+}
+
 require_once __DIR__ . '/lib/emhttp.php';
 
 $PLUGIN_DIR = "$DOCROOT/plugins/unraid-certbot";
@@ -67,7 +72,7 @@ switch (true) {
         cb_dev_index($DEV_ROOT, $DOCROOT, $PLUGIN_DIR, $SEED_HINT);
         return true;
 
-    case strcasecmp($uri, '/Settings/UnraidCertbot') === 0:
+    case in_array(strtolower($uri), ['/settings/unraid-certbot', '/settings/unraidcertbot'], true):
         cb_dev_render($PLUGIN_DIR, 'unraid-certbot.page', $DEV_ROOT, $SEED_HINT, $uri);
         return true;
 
@@ -197,9 +202,9 @@ function cb_dev_index(string $devRoot, string $docrootPath, string $pluginDir, s
     $body = '<p>unraid-certbot 本地调试首页。</p>';
 
     $body .= '<h3>快捷入口</h3><ul>'
-           . '<li><a href="/Settings/UnraidCertbot?tab=status">证书状态标签</a>'
-           . '（<a href="/Settings/UnraidCertbot?tab=history">续期历史</a>'
-           . ' / <a href="/Settings/UnraidCertbot?tab=log">运行日志</a>）</li>'
+           . '<li><a href="/Settings/unraid-certbot?tab=status">证书状态标签</a>'
+           . '（<a href="/Settings/unraid-certbot?tab=history">续期历史</a>'
+           . ' / <a href="/Settings/unraid-certbot?tab=log">运行日志</a>）</li>'
            . '<li><a href="/plugins/unraid-certbot/include/exec.php?action=docker" '
            . 'onclick="openBox(this.href, \'Docker 环境检查\', 820, 560); return false;">'
            . 'Docker 环境检查</a></li>'

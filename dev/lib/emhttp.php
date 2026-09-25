@@ -410,7 +410,7 @@ function cb_dev_nav(string $current): string
         ['主界面', '',                       false],
         ['共享',   '',                       false],
         ['用户',   '',                       false],
-        ['设置',   '/Settings/UnraidCertbot', true],
+        ['设置',   '/Settings/unraid-certbot', true],
         ['插件',   '',                       false],
         ['DOCKER', '',                       false],
         ['虚拟机', '',                       false],
@@ -419,7 +419,7 @@ function cb_dev_nav(string $current): string
     ];
 
     // 设置类的页面（/Settings/...）在真机上都在「设置」下，预览里也统一高亮它
-    $current = preg_match('#^/Settings/#i', $current) ? '/Settings/UnraidCertbot' : $current;
+    $current = preg_match('#^/Settings/#i', $current) ? '/Settings/unraid-certbot' : $current;
 
     $out = '';
     foreach ($items as [$label, $href, $real]) {
@@ -507,7 +507,7 @@ function cb_dev_chrome(array $head, string $body, array $ctx = []): string
   <div class="nav-tile">{$nav}</div>
   <div class="nav-tile right">
     <div class="nav-item"><a href="/" title="沙箱信息">信息</a></div>
-    <div class="nav-item"><a href="/Settings/UnraidCertbot?tab=log" title="运行日志">日志</a></div>
+    <div class="nav-item"><a href="/Settings/unraid-certbot?tab=log" title="运行日志">日志</a></div>
   </div>
 </div>
 

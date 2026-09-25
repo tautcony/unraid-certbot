@@ -19,10 +19,52 @@ if (!function_exists('cb_dev_path')) {
 }
 
 if (!function_exists('_')) {
-    /** 本地不加载语言包，恒等返回 */
+    /** 本地模拟 Unraid 的页面词条加载与键规范化。 */
     function _($text)
     {
-        return $text;
+        global $docroot;
+        static $language = null;
+        if ($language === null) {
+            $language = [];
+            $locale = (string)(getenv('CB_DEV_LOCALE') ?: 'zh_CN');
+            if (preg_match('/^[a-z]{2}_[A-Z]{2}$/', $locale)) {
+                $path = parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+                $parts = array_filter(explode('/', strtolower((string)$path)));
+                if (in_array('unraidcertbot', $parts, true)) {
+                    $parts[] = 'unraid-certbot';
+                }
+                foreach ($parts as $part) {
+                    $file = "$docroot/languages/$locale/$part.txt";
+                    if (!is_file($file)) {
+                        continue;
+                    }
+                    $source = file_get_contents($file);
+                    $escaped = str_replace(["\"\n", '"'], ["\" \n", '\\"'], $source);
+                    $parsed = parse_ini_string(preg_replace(
+                        ['/^\s*?(null|yes|no|true|false|on|off|none)\s*?=/mi', '/^\s*?([^>].*?)\s*?=\s*?(.*)\s*?$/m'],
+                        ['$1.=', '$1="$2"'],
+                        $escaped
+                    ));
+                    if (is_array($parsed)) {
+                        $language = array_replace($language, $parsed);
+                    }
+                }
+            }
+        }
+        $text = trim((string)$text);
+        if ($text === '') {
+            return '';
+        }
+        $key = preg_replace(
+            ['/\&amp;|[\?\{\}\|\&\~\!\[\]\(\)\/\\:\*^\.\"\']|<.+?\/?>/', '/^(null|yes|no|true|false|on|off|none)$/i', '/  +/'],
+            ['', '$1.', ' '],
+            $text
+        );
+        return preg_replace(
+            ['/\*\*(.+?)\*\*/', '/\*(.+?)\*/', "/'/"],
+            ['<b>$1</b>', '<i>$1</i>', '&apos;'],
+            $language[$key] ?? $text
+        );
     }
 }
 

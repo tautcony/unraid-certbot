@@ -51,7 +51,7 @@ fi
 [ ! -e "$WORK/escape" ] || fail 'traversal wrote outside sandbox'
 
 VERSION_BEFORE="$(cksum "$ROOT/VERSION")"
-if "$ROOT/build.sh" typo >/dev/null 2>&1; then fail 'invalid version accepted'; fi
+if "$ROOT/tools/build.sh" typo >/dev/null 2>&1; then fail 'invalid version accepted'; fi
 [ "$(cksum "$ROOT/VERSION")" = "$VERSION_BEFORE" ] || fail 'invalid version changed VERSION'
 
 CFG="$SANDBOX/boot/config/plugins/unraid-certbot/unraid-certbot.cfg"
@@ -130,7 +130,7 @@ done
 
 PORT=$((20000 + RANDOM % 20000))
 printf 'armed\n' > "$WORK/cron-fail"
-CB_DEV_CRON_FAIL_ONCE="$WORK/cron-fail" CB_DOCKER="$SANDBOX/bin/docker" php -S "127.0.0.1:$PORT" \
+CB_DEV_LOCALE=en_US CB_DEV_CRON_FAIL_ONCE="$WORK/cron-fail" CB_DOCKER="$SANDBOX/bin/docker" php -d disable_functions=_ -S "127.0.0.1:$PORT" \
   -t "$SANDBOX/usr/local/emhttp" "$ROOT/dev/server.php" > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 URL="http://127.0.0.1:$PORT/plugins/unraid-certbot/include/update.php"
@@ -155,6 +155,9 @@ LAST_PAGE=$(( ($(wc -l < "$SANDBOX/boot/config/plugins/unraid-certbot/history.ts
 [[ "$PAGE1" == *'aria-label="Next page"'* ]] || fail 'history pagination controls missing'
 [[ "$PAGEMIDDLE" == *'class="cb-history-ellipsis"'* && "$PAGEMIDDLE" == *'aria-label="Page 5" class="active" aria-current="page"'* ]] \
   || fail 'middle history page pagination is wrong'
+if command -v node >/dev/null 2>&1; then
+  node "$ROOT/tests/navigation.js" "http://127.0.0.1:$PORT" || fail 'tab navigation kept stale pagination'
+fi
 
 BODY='DOMAINS=example.com&ACME_EMAIL=admin@example.com&UNRAID_HOSTNAME=tower&PROPAGATION=60&CERT_DIR=/mnt/user/appdata/letsencrypt&SCHEDULE=daily&SCHEDULE_TIME=01:14&RESTART_NGINX=yes&STAGING=no'
 ORIGIN="Origin: http://127.0.0.1:$PORT"
@@ -191,5 +194,54 @@ rm "$WORK/cron-fail"
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&SCHEDULE=weekly&CF_API_TOKEN_CLEAR=yes" "$URL")"
 [[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'clear-token cron failure returned success'
 [ "$(cksum "$CFG" "$CRED" "$CRON")" = "$BEFORE" ] || fail 'clear-token cron failure did not restore all files'
+
+RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=zh_CN" "$URL")"
+[[ "$RESPONSE" == *'cbSaveResult(true'* ]] || fail 'Chinese override save failed'
+ZH_OVERRIDE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
+[[ "$ZH_OVERRIDE" == *'>证书状态</button>'* && "$ZH_OVERRIDE" == *'<b>证书正常</b>'* ]] \
+  || fail 'Chinese override ignored on English host'
+BEFORE="$(cksum "$CFG")"
+RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=invalid" "$URL")"
+[[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'invalid interface language accepted'
+[ "$(cksum "$CFG")" = "$BEFORE" ] || fail 'invalid interface language changed configuration'
+RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=auto" "$URL")"
+[[ "$RESPONSE" == *'cbSaveResult(true'* ]] || fail 'follow-Unraid save failed'
+AUTO_EN="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
+[[ "$AUTO_EN" == *'>Certificate Status</button>'* ]] || fail 'follow-Unraid did not restore English'
+
+kill "$SERVER_PID" 2>/dev/null || true
+wait "$SERVER_PID" 2>/dev/null || true
+SERVER_PID=''
+CB_DEV_LOCALE=zh_CN CB_DOCKER="$SANDBOX/bin/docker" php -d disable_functions=_ -S "127.0.0.1:$PORT" \
+  -t "$SANDBOX/usr/local/emhttp" "$ROOT/dev/server.php" > "$WORK/server-zh.log" 2>&1 &
+SERVER_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  curl -fsS "http://127.0.0.1:$PORT/" -o /dev/null 2>/dev/null && break
+  sleep 0.2
+done
+ZH_STATUS="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
+[[ "$ZH_STATUS" == *">证书状态</button>"* && "$ZH_STATUS" == *"<b>证书正常</b>"* \
+   && "$ZH_STATUS" != *">Certificate Status</button>"* ]] || fail 'Chinese status preview not translated'
+ZH_CONFIG="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=config")"
+[[ "$ZH_CONFIG" == *"Cloudflare API 令牌"* && "$ZH_CONFIG" == *"支持通配符"* ]] \
+  || fail 'Chinese settings preview not translated'
+ZH_HISTORY="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=history")"
+[[ "$ZH_HISTORY" == *'aria-label="下一页"'* ]] || fail 'Chinese history pagination not translated'
+ZH_LOG="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=log")"
+[[ "$ZH_LOG" == *"日志超过 1 MiB 时会自动截断"* ]] || fail 'Chinese log preview not translated'
+ZH_ACTION="$(curl -sS "http://127.0.0.1:$PORT/plugins/unraid-certbot/include/exec.php?action=unsupported")"
+[[ "$ZH_ACTION" == *"不支持的操作"* ]] || fail 'Chinese action dialog not translated'
+RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=en_US" "$URL")"
+[[ "$RESPONSE" == *'cbSaveResult(true'* && "$RESPONSE" == *'Settings saved'* ]] || fail 'English override save failed'
+EN_OVERRIDE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
+[[ "$EN_OVERRIDE" == *'>Certificate Status</button>'* && "$EN_OVERRIDE" == *'<b>Certificate valid</b>'* ]] \
+  || fail 'English override ignored on Chinese host'
+EN_CONFIG="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=config")"
+[[ "$EN_CONFIG" == *'<option value="en_US" selected>English</option>'* ]] \
+  || fail 'English override selection not shown'
+RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=auto" "$URL")"
+[[ "$RESPONSE" == *'cbSaveResult(true'* ]] || fail 'follow-Unraid restore failed'
+AUTO_ZH="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
+[[ "$AUTO_ZH" == *'>证书状态</button>'* ]] || fail 'follow-Unraid did not restore Chinese'
 
 echo 'regression tests passed'

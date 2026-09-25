@@ -1,11 +1,13 @@
 # Local development
 
 The local preview runs the plugin in the `dev/run/` sandbox. All reads and writes stay inside the sandbox and do not affect the host system.
+The preview reads the plugin's Unraid language file. It needs PHP to allow the built-in gettext `_()` function to be disabled so the Unraid-compatible local translator can take its place; `./dev.sh doctor` checks this.
 
 ## Quick start
 
 ```bash
-./dev.sh                # Initialize the sandbox and start the preview server
+./dev.sh                # Initialize the sandbox and start the Chinese preview
+CB_DEV_LOCALE=en_US ./dev.sh  # Preview English
 ```
 
 Open <http://127.0.0.1:8080>:
@@ -13,7 +15,7 @@ Open <http://127.0.0.1:8080>:
 | URL | Contents |
 |---|---|
 | `/` | Debug home page with sandbox status and shortcuts |
-| `/Settings/UnraidCertbot` | Certificate Status, Settings, Renewal History, and Run Log |
+| `/Settings/unraid-certbot` | Certificate Status, Settings, Renewal History, and Run Log |
 
 Useful commands:
 
@@ -42,6 +44,7 @@ CB_DEV_CERT_DAYS=10 ./dev.sh reset    # Generate an almost-expired certificate
 | `CB_DOCKER` | Docker executable | `$CB_DEV_ROOT/bin/docker` |
 | `CB_DEV_PORT` | Preview port | `8080` |
 | `CB_DEV_TZ` | Time zone | System time zone |
+| `CB_DEV_LOCALE` | Plugin interface language | `zh_CN` |
 | `CB_DEV_HOST` | Sample hostname | `tower` |
 | `CB_DEV_EMAIL` | Sample email | `admin@example.com` |
 | `CB_DEV_DOMAINS` | Sample domains | `example.com,www.example.com` |
