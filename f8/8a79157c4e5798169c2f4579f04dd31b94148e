@@ -1,0 +1,29 @@
+build.sh
+  s_dc4bb90ff9f49d::t_5c5fff267b8fe9 115
+  s_dc4bb90ff9f49d::t_6b252a5fef1447 112-114,116-120,133
+lint.sh
+  s_dc4bb90ff9f49d::t_92b5b61035fefe 67-73
+tests/build-reproducibility.sh
+  s_dc4bb90ff9f49d::t_92b5b61035fefe 1-12,14,16-17,20-21,23-24
+  s_dc4bb90ff9f49d::t_2736448ce52f89 27-29
+  s_dc4bb90ff9f49d::t_f85ec875d85fa3 15,19,22,25-26,30-40
+  s_dc4bb90ff9f49d::t_5c5fff267b8fe9 13,18
+.github/workflows/release.yml
+  s_dc4bb90ff9f49d::t_4a46829d5d9f45 63-64,88-98,168-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f88a79157c4e5798169c2f4579f04dd31b94148e",
+  "prompts": {},
+  "sessions": {
+    "s_dc4bb90ff9f49d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d791-5404-74d1-8e06-c95e20d6d8e2",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
