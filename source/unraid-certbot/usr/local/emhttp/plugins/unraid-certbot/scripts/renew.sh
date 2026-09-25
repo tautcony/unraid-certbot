@@ -105,8 +105,9 @@ rotate_log() {
   if [ "$size" -gt "$MAX_LOG_BYTES" ]; then
     tail -c $((MAX_LOG_BYTES / 2)) "$LOG_FILE" > "${LOG_FILE}.tmp" 2>/dev/null \
       && mv "${LOG_FILE}.tmp" "$LOG_FILE"
-    printf '[%s] --- 日志超过 %d 字节，已截断 ---\n' \
-      "$(date '+%Y-%m-%d %H:%M:%S')" "$MAX_LOG_BYTES" >> "$LOG_FILE"
+    printf '[%s] --- %s ---\n' \
+      "$(date '+%Y-%m-%d %H:%M:%S')" \
+      "$(cb_msg "日志超过 ${MAX_LOG_BYTES} 字节，已截断" "Log exceeded ${MAX_LOG_BYTES} bytes and was truncated")" >> "$LOG_FILE"
   fi
 }
 
@@ -133,42 +134,42 @@ cb_fstype() {
 audit_cert_dir() {
   local probe="${CERT_DIR}/.cb-probe-$$"
   local fstype mountopts
-  echo "—— 证书目录体检 ——"
-  echo "目录        : ${CERT_DIR}"
+  echo "$(cb_msg '—— 证书目录体检 ——' '—— Certificate directory check ——')"
+  echo "$(cb_msg '目录        ' 'Directory   '): ${CERT_DIR}"
   if [ ! -d "$CERT_DIR" ]; then
-    echo "状态        : 不存在（首次续期时会自动创建）"
+    echo "$(cb_msg '状态        : 不存在（首次续期时会自动创建）' 'Status      : Missing (will be created at first renewal)')"
     return 0
   fi
-  echo "属主/权限   : $(cb_own "$CERT_DIR")"
+  echo "$(cb_msg '属主/权限   ' 'Owner/mode  '): $(cb_own "$CERT_DIR")"
 
   fstype=$(cb_fstype "$CERT_DIR")
   mountopts=$(awk -v d="$CERT_DIR" '$2==d {print $4}' /proc/mounts 2>/dev/null | head -n1)
   if [ -n "$mountopts" ]; then
-    echo "文件系统    : ${fstype}  挂载选项: ${mountopts}"
+    echo "$(cb_msg '文件系统    ' 'Filesystem  '): ${fstype}  $(cb_msg '挂载选项' 'mount options'): ${mountopts}"
   else
-    echo "文件系统    : ${fstype}"
+    echo "$(cb_msg '文件系统    ' 'Filesystem  '): ${fstype}"
   fi
 
   if [ -w "$CERT_DIR" ]; then
-    echo "可写(本机)  : 是"
+    echo "$(cb_msg '可写(本机)  : 是' 'Writable    : Yes')"
   else
-    echo "可写(本机)  : 否（续期会失败）"
+    echo "$(cb_msg '可写(本机)  : 否（续期会失败）' 'Writable    : No (renewal will fail)')"
   fi
 
   if ln -s "$CERT_DIR" "$probe" 2>/dev/null; then
     rm -f "$probe"
-    echo "符号链接    : 支持"
+    echo "$(cb_msg '符号链接    : 支持' 'Symlinks    : Supported')"
   else
     rm -f "$probe"
-    echo "符号链接    : 不支持（续期会失败）"
+    echo "$(cb_msg '符号链接    : 不支持（续期会失败）' 'Symlinks    : Unsupported (renewal will fail)')"
   fi
 
   local archive="${CERT_DIR}/archive" live="${CERT_DIR}/live"
-  [ -d "$archive" ] && echo "archive 属主: $(cb_own "$archive")"
-  [ -d "$live" ]    && echo "live 属主   : $(cb_own "$live")"
+  [ -d "$archive" ] && echo "$(cb_msg 'archive 属主' 'archive owner'): $(cb_own "$archive")"
+  [ -d "$live" ]    && echo "$(cb_msg 'live 属主   ' 'live owner    '): $(cb_own "$live")"
   case "${mountopts}" in
     ro|ro,*|*,ro|*,ro,*)
-      echo "注意        : 只读挂载（续期会失败）" ;;
+      echo "$(cb_msg '注意        : 只读挂载（续期会失败）' 'Warning     : Read-only mount (renewal will fail)')" ;;
   esac
 }
 
@@ -237,6 +238,21 @@ load_cfg() {
 
 load_cfg || exit 1
 
+LOG_LANG="${UI_LANGUAGE:-auto}"
+if [ "$LOG_LANG" = auto ]; then
+  if [ -n "$DEV_ROOT" ] && [ -n "${CB_DEV_LOCALE:-}" ]; then
+    LOG_LANG="$CB_DEV_LOCALE"
+  else
+    LOG_LANG=$(php -r '
+      $cfg = @parse_ini_file($argv[1], false, INI_SCANNER_RAW);
+      echo is_array($cfg) ? ($cfg["locale"] ?? "zh_CN") : "zh_CN";
+    ' "$(syspath /boot/config/plugins/dynamix/dynamix.cfg)" 2>/dev/null)
+  fi
+fi
+cb_msg() {
+  if [ "$LOG_LANG" = en_US ]; then printf '%s' "$2"; else printf '%s' "$1"; fi
+}
+
 : "${ACME_EMAIL:=}"
 : "${UNRAID_HOSTNAME:=}"
 : "${DOMAINS:=}"
@@ -271,7 +287,7 @@ valid_cert_dir() {
 }
 
 if ! valid_cert_dir "$CERT_DIR"; then
-  echo "证书目录必须位于 /mnt/user/appdata 的普通子目录：$CERT_DIR" >&2
+  echo "$(cb_msg "证书目录必须位于 /mnt/user/appdata 的普通子目录：$CERT_DIR" "Certificate directory must be a regular subdirectory of /mnt/user/appdata: $CERT_DIR")" >&2
   exit 1
 fi
 CERT_DIR="$(syspath "$CERT_DIR")"
@@ -284,26 +300,26 @@ CERT_DIR="$(syspath "$CERT_DIR")"
 
 if [ "$STATUS_ONLY" = "yes" ]; then
   primary=$(printf '%s' "$DOMAINS" | tr ',' '\n' | tr -s '[:space:]' '\n' | sed '/^$/d' | head -n1)
-  echo "运行模式    : $([ -n "$DEV_ROOT" ] && echo "本地沙箱 ${DEV_ROOT}" || echo 'Unraid 生产环境')"
-  echo "插件目录    : ${PLUGIN_DIR}"
-  echo "配置目录    : ${CFG_DIR}"
-  echo "配置文件    : ${CFG_FILE} $([ -f "$CFG_FILE" ] && echo '(存在)' || echo '(缺失，使用默认值)')"
-  echo "凭据文件    : ${CRED_FILE} $([ -s "$CRED_FILE" ] && echo '(已配置)' || echo '(缺失)')"
-  echo "邮箱        : ${ACME_EMAIL:-<未设置>}"
-  echo "主机名      : ${UNRAID_HOSTNAME:-<未设置>}"
-  echo "域名        : ${DOMAINS:-<未设置>}"
-  echo "主域名      : ${primary:-<未设置>}"
-  echo "证书目录    : ${CERT_DIR}"
-  echo "传播等待    : ${PROPAGATION}s"
-  echo "测试环境    : ${STAGING}"
-  echo "重启 nginx  : ${RESTART_NGINX}"
+  echo "$(cb_msg '运行模式    ' 'Mode        '): $([ -n "$DEV_ROOT" ] && cb_msg "本地沙箱 ${DEV_ROOT}" "Local sandbox ${DEV_ROOT}" || cb_msg 'Unraid 生产环境' 'Unraid production')"
+  echo "$(cb_msg '插件目录    ' 'Plugin dir  '): ${PLUGIN_DIR}"
+  echo "$(cb_msg '配置目录    ' 'Config dir  '): ${CFG_DIR}"
+  echo "$(cb_msg '配置文件    ' 'Config file '): ${CFG_FILE} $([ -f "$CFG_FILE" ] && cb_msg '(存在)' '(present)' || cb_msg '(缺失，使用默认值)' '(missing; defaults used)')"
+  echo "$(cb_msg '凭据文件    ' 'Credentials '): ${CRED_FILE} $([ -s "$CRED_FILE" ] && cb_msg '(已配置)' '(configured)' || cb_msg '(缺失)' '(missing)')"
+  echo "$(cb_msg '邮箱        ' 'Email       '): ${ACME_EMAIL:-$(cb_msg '<未设置>' '<not set>')}"
+  echo "$(cb_msg '主机名      ' 'Hostname    '): ${UNRAID_HOSTNAME:-$(cb_msg '<未设置>' '<not set>')}"
+  echo "$(cb_msg '域名        ' 'Domains     '): ${DOMAINS:-$(cb_msg '<未设置>' '<not set>')}"
+  echo "$(cb_msg '主域名      ' 'Primary     '): ${primary:-$(cb_msg '<未设置>' '<not set>')}"
+  echo "$(cb_msg '证书目录    ' 'Cert dir    '): ${CERT_DIR}"
+  echo "$(cb_msg '传播等待    ' 'Propagation '): ${PROPAGATION}s"
+  echo "$(cb_msg '测试环境    ' 'Staging     '): ${STAGING}"
+  echo "$(cb_msg '重启 nginx  ' 'Restart nginx'): ${RESTART_NGINX}"
   if [ -x "$DOCKER" ] || command -v "$DOCKER" >/dev/null 2>&1; then
-    echo "docker 命令 : ${DOCKER}"
+    echo "$(cb_msg 'docker 命令 ' 'Docker cmd  '): ${DOCKER}"
   else
-    echo "docker 命令 : ${DOCKER} (不可用)"
+    echo "$(cb_msg 'docker 命令 ' 'Docker cmd  '): ${DOCKER} $(cb_msg '(不可用)' '(unavailable)')"
   fi
   bundle="${SSL_CERTS_DIR}/${UNRAID_HOSTNAME}_unraid_bundle.pem"
-  echo "bundle 文件 : ${bundle} $([ -f "$bundle" ] && echo '(存在)' || echo '(缺失)')"
+  echo "$(cb_msg 'bundle 文件 ' 'Bundle file '): ${bundle} $([ -f "$bundle" ] && cb_msg '(存在)' '(present)' || cb_msg '(缺失)' '(missing)')"
   audit_cert_dir
   exit 0
 fi
@@ -316,29 +332,29 @@ rotate_log
 run_flags=""
 [ "$FORCE" = "yes" ] && run_flags="$run_flags, force=yes"
 [ "$STAGING" = "yes" ] && run_flags="$run_flags, staging=yes"
-log "======== 开始续期 (触发: ${TRIGGER}${run_flags}) ========"
+log "$(cb_msg "======== 开始续期 (触发: ${TRIGGER}${run_flags}) ========" "======== Renewal started (trigger: ${TRIGGER}${run_flags}) ========")"
 
 if [ -z "$ACME_EMAIL" ]; then
-  fail 1 "未配置邮箱"
+  fail 1 "$(cb_msg '未配置邮箱' 'Email is not configured')"
 fi
 if [ -z "$UNRAID_HOSTNAME" ]; then
-  fail 1 "未配置主机名"
+  fail 1 "$(cb_msg '未配置主机名' 'Hostname is not configured')"
 fi
 if ! [[ "$UNRAID_HOSTNAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$ ]]; then
-  fail 1 "主机名格式不正确"
+  fail 1 "$(cb_msg '主机名格式不正确' 'Invalid hostname')"
 fi
 if [ -z "$DOMAINS" ]; then
-  fail 1 "未配置域名"
+  fail 1 "$(cb_msg '未配置域名' 'Domains are not configured')"
 fi
 if ! [[ "$PROPAGATION" =~ ^[0-9]+$ ]] || [ "$PROPAGATION" -lt 10 ] || [ "$PROPAGATION" -gt 900 ]; then
-  fail 1 "DNS 传播等待时间不正确"
+  fail 1 "$(cb_msg 'DNS 传播等待时间不正确' 'Invalid DNS propagation wait')"
 fi
 if [ ! -s "$CRED_FILE" ]; then
-  fail 1 "未配置 Cloudflare API Token"
+  fail 1 "$(cb_msg '未配置 Cloudflare API Token' 'Cloudflare API Token is not configured')"
 fi
 case "$CERT_DIR" in
   /*) ;;
-  *)  fail 1 "证书目录必须是绝对路径，当前为：${CERT_DIR}" ;;
+  *)  fail 1 "$(cb_msg "证书目录必须是绝对路径，当前为：${CERT_DIR}" "Certificate directory must be an absolute path: ${CERT_DIR}")" ;;
 esac
 
 # 域名支持逗号、分号或空白分隔，并按首次出现顺序去重。
@@ -348,7 +364,7 @@ while IFS= read -r d; do
   check_domain="${d#\*.}"
   if ! [[ "$check_domain" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] \
     || [[ "$check_domain" == *..* ]] || [[ "$check_domain" != *.* ]]; then
-    fail 1 "域名格式不正确：$d"
+    fail 1 "$(cb_msg "域名格式不正确：$d" "Invalid domain: $d")"
   fi
   if [[ " ${DOMAIN_ARRAY[*]-} " == *" $d "* ]]; then
     continue
@@ -357,44 +373,44 @@ while IFS= read -r d; do
 done < <(printf '%s\n' "$DOMAINS" | tr ',;' '\n' | tr -s '[:space:]' '\n' | sed '/^$/d')
 
 if [ "${#DOMAIN_ARRAY[@]}" -eq 0 ]; then
-  fail 1 "域名列表为空"
+  fail 1 "$(cb_msg '域名列表为空' 'Domain list is empty')"
 fi
 PRIMARY_DOMAIN="${DOMAIN_ARRAY[0]}"
 
 if ! command -v flock >/dev/null 2>&1; then
-  fail 3 "缺少 flock 命令"
+  fail 3 "$(cb_msg '缺少 flock 命令' 'flock command is missing')"
 fi
-exec 9>"$LOCK_FILE" || fail 3 "无法打开运行锁"
+exec 9>"$LOCK_FILE" || fail 3 "$(cb_msg '无法打开运行锁' 'Cannot open renewal lock')"
 if ! flock -n 9; then
-  log "已有续期正在进行，跳过"
+  log "$(cb_msg '已有续期正在进行，跳过' 'Another renewal is running; skipped')"
   exit 3
 fi
 
 # 先检查 Docker 服务，再拉取所需镜像，尽早报告可操作的错误。
 if ! command -v "$DOCKER" >/dev/null 2>&1; then
-  fail 4 "未找到 docker 命令"
+  fail 4 "$(cb_msg '未找到 docker 命令' 'Docker command not found')"
 fi
 if ! "$DOCKER" info >/dev/null 2>&1; then
-  fail 4 "Docker 服务未运行（通常是阵列未启动）"
+  fail 4 "$(cb_msg 'Docker 服务未运行（通常是阵列未启动）' 'Docker is unavailable (the array may be stopped)')"
 fi
 
 if ! "$DOCKER" image inspect "$IMAGE" >/dev/null 2>&1; then
-  log "正在拉取镜像 ${IMAGE}"
+  log "$(cb_msg "正在拉取镜像 ${IMAGE}" "Pulling image ${IMAGE}")"
   if ! "$DOCKER" pull "$IMAGE"; then
-    fail 2 "拉取镜像失败，请检查网络"
+    fail 2 "$(cb_msg '拉取镜像失败，请检查网络' 'Image pull failed; check the network')"
   fi
 fi
 
-mkdir -p -m 700 "$CERT_DIR" || fail 1 "无法创建证书目录 ${CERT_DIR}"
+mkdir -p -m 700 "$CERT_DIR" || fail 1 "$(cb_msg "无法创建证书目录 ${CERT_DIR}" "Cannot create certificate directory ${CERT_DIR}")"
 
 # certbot 需要在 /etc/letsencrypt 下创建 archive/live 符号链接。
 case "$(echo "$(cb_fstype "$CERT_DIR")" | tr 'A-Z' 'a-z')" in
   vfat|msdos|exfat|fat|fat32)
-    fail 2 "证书目录位于 $(cb_fstype "$CERT_DIR") 文件系统，不支持符号链接，请调整路径"
+    fail 2 "$(cb_msg "证书目录位于 $(cb_fstype "$CERT_DIR") 文件系统，不支持符号链接，请调整路径" "Certificate directory is on $(cb_fstype "$CERT_DIR"), which does not support symbolic links")"
     ;;
 esac
 if [ ! -w "$CERT_DIR" ]; then
-  fail 2 "证书目录不可写，请检查权限（root:root 700）"
+  fail 2 "$(cb_msg '证书目录不可写，请检查权限（root:root 700）' 'Certificate directory is not writable; check permissions (root:root 700)')"
 fi
 
 # ---------------------------------------------------------------------------
@@ -418,7 +434,7 @@ CERTBOT_ARGS=(
 
 if [ "$STAGING" = "yes" ]; then
   CERTBOT_ARGS+=(--server "$STAGING_SERVER")
-  log "⚠️ 使用 Let's Encrypt 测试环境，签发的证书不受浏览器信任"
+  log "$(cb_msg "⚠️ 使用 Let's Encrypt 测试环境，签发的证书不受浏览器信任" "Warning: Let's Encrypt staging certificates are not trusted by browsers")"
 fi
 if [ "$FORCE" = "yes" ]; then
   CERTBOT_ARGS+=(--force-renewal)
@@ -428,7 +444,7 @@ for d in "${DOMAIN_ARRAY[@]}"; do
   CERTBOT_ARGS+=(-d "$d")
 done
 
-log "请求证书：${DOMAIN_ARRAY[*]}"
+log "$(cb_msg "请求证书：${DOMAIN_ARRAY[*]}" "Requesting certificate: ${DOMAIN_ARRAY[*]}")"
 
 {
   printf '\n[%s] $ %s run --rm %s certbot %s\n' \
@@ -446,9 +462,9 @@ CERTBOT_RC="${PIPESTATUS[0]}"
 if [ "$CERTBOT_RC" -ne 0 ]; then
   reason="$(certbot_reason)"
   if [ -n "$reason" ]; then
-    fail 2 "certbot 执行失败 (退出码 ${CERTBOT_RC})：${reason}"
+    fail 2 "$(cb_msg "certbot 执行失败 (退出码 ${CERTBOT_RC})：${reason}" "certbot failed (exit ${CERTBOT_RC}): ${reason}")"
   fi
-  fail 2 "certbot 执行失败 (退出码 ${CERTBOT_RC})，详见运行日志"
+  fail 2 "$(cb_msg "certbot 执行失败 (退出码 ${CERTBOT_RC})，详见运行日志" "certbot failed (exit ${CERTBOT_RC}); see the run log")"
 fi
 
 # ---------------------------------------------------------------------------
@@ -461,22 +477,22 @@ KEY_FILE="${LIVE_DIR}/privkey.pem"
 OUTPUT_FILE="${SSL_CERTS_DIR}/${UNRAID_HOSTNAME}_unraid_bundle.pem"
 
 if [ ! -s "$CERT_FILE" ] || [ ! -s "$KEY_FILE" ]; then
-  fail 2 "证书文件未生成：${CERT_FILE} 或 ${KEY_FILE} 不存在"
+  fail 2 "$(cb_msg "证书文件未生成：${CERT_FILE} 或 ${KEY_FILE} 不存在" "Certificate files were not created: ${CERT_FILE} or ${KEY_FILE} is missing")"
 fi
 
-mkdir -p "$SSL_CERTS_DIR" || fail 1 "无法创建 ${SSL_CERTS_DIR}"
+mkdir -p "$SSL_CERTS_DIR" || fail 1 "$(cb_msg "无法创建 ${SSL_CERTS_DIR}" "Cannot create ${SSL_CERTS_DIR}")"
 
-TEMP_BUNDLE=$(mktemp "${SSL_CERTS_DIR}/.unraid-certbot-bundle.XXXXXX") || fail 1 "无法创建临时文件"
+TEMP_BUNDLE=$(mktemp "${SSL_CERTS_DIR}/.unraid-certbot-bundle.XXXXXX") || fail 1 "$(cb_msg '无法创建临时文件' 'Cannot create temporary file')"
 trap 'rm -f "$TEMP_BUNDLE"' EXIT
-cat "$CERT_FILE" "$KEY_FILE" > "$TEMP_BUNDLE" || { rm -f "$TEMP_BUNDLE"; fail 1 "合并证书失败"; }
-chmod 600 "$TEMP_BUNDLE" || fail 1 "无法设置 bundle 权限"
+cat "$CERT_FILE" "$KEY_FILE" > "$TEMP_BUNDLE" || { rm -f "$TEMP_BUNDLE"; fail 1 "$(cb_msg '合并证书失败' 'Cannot combine certificate and key')"; }
+chmod 600 "$TEMP_BUNDLE" || fail 1 "$(cb_msg '无法设置 bundle 权限' 'Cannot set bundle permissions')"
 if ! openssl x509 -noout -in "$TEMP_BUNDLE" >/dev/null 2>&1 \
    || ! openssl pkey -noout -in "$KEY_FILE" >/dev/null 2>&1; then
-  fail 2 "证书或私钥不是有效的 PEM"
+  fail 2 "$(cb_msg '证书或私钥不是有效的 PEM' 'Certificate or private key is not valid PEM')"
 fi
 cert_pub="$(openssl x509 -pubkey -noout -in "$CERT_FILE" 2>/dev/null | openssl pkey -pubin -outform DER 2>/dev/null | openssl dgst -sha256)"
 key_pub="$(openssl pkey -pubout -in "$KEY_FILE" 2>/dev/null | openssl pkey -pubin -outform DER 2>/dev/null | openssl dgst -sha256)"
-[ -n "$cert_pub" ] && [ "$cert_pub" = "$key_pub" ] || fail 2 "证书与私钥不匹配"
+[ -n "$cert_pub" ] && [ "$cert_pub" = "$key_pub" ] || fail 2 "$(cb_msg '证书与私钥不匹配' 'Certificate and private key do not match')"
 
 PENDING_FILE="${CFG_DIR}/nginx.pending"
 
@@ -484,58 +500,58 @@ PENDING_FILE="${CFG_DIR}/nginx.pending"
 if [ -f "$OUTPUT_FILE" ] && cmp -s "$TEMP_BUNDLE" "$OUTPUT_FILE"; then
   rm -f "$TEMP_BUNDLE"
   if [ "$RESTART_NGINX" = "yes" ] && [ -f "$PENDING_FILE" ]; then
-    log "证书内容未变化，重试 nginx 应用"
+    log "$(cb_msg '证书内容未变化，重试 nginx 应用' 'Certificate unchanged; retrying nginx restart')"
     if [ -x "$NGINX_RC" ] && "$NGINX_RC" restart >/dev/null 2>&1; then
-      rm -f "$PENDING_FILE" || fail 1 "无法清除 nginx 待应用状态"
-      record_history "success" "${DOMAIN_ARRAY[*]}" "Pending nginx restart applied"
+      rm -f "$PENDING_FILE" || fail 1 "$(cb_msg '无法清除 nginx 待应用状态' 'Cannot clear pending nginx state')"
+      record_history "success" "${DOMAIN_ARRAY[*]}" "$(cb_msg '待处理的 nginx 重启已完成' 'Pending nginx restart applied')"
       exit 0
     fi
-    fail 2 "nginx 重启仍失败，证书待应用"
+    fail 2 "$(cb_msg 'nginx 重启仍失败，证书待应用' 'nginx restart still failed; certificate is pending')"
   fi
-  log "证书内容未变化，跳过写入与重启"
-  record_history "success" "${DOMAIN_ARRAY[*]}" "Certificate unchanged; no update needed"
+  log "$(cb_msg '证书内容未变化，跳过写入与重启' 'Certificate unchanged; skipping write and restart')"
+  record_history "success" "${DOMAIN_ARRAY[*]}" "$(cb_msg '证书未变化，无需更新' 'Certificate unchanged; no update needed')"
   exit 0
 fi
 
 if [ -f "$OUTPUT_FILE" ]; then
   BACKUP_FILE="${OUTPUT_FILE}.$(date +%Y%m%d)"
-  [ ! -d "$BACKUP_FILE" ] || fail 1 "备份路径是目录，未替换 bundle"
-  BACKUP_TMP=$(mktemp "${SSL_CERTS_DIR}/.unraid-certbot-backup.XXXXXX") || fail 1 "无法创建备份临时文件"
-  log "备份旧证书到 ${BACKUP_FILE}"
+  [ ! -d "$BACKUP_FILE" ] || fail 1 "$(cb_msg '备份路径是目录，未替换 bundle' 'Backup path is a directory; bundle was not replaced')"
+  BACKUP_TMP=$(mktemp "${SSL_CERTS_DIR}/.unraid-certbot-backup.XXXXXX") || fail 1 "$(cb_msg '无法创建备份临时文件' 'Cannot create temporary backup')"
+  log "$(cb_msg "备份旧证书到 ${BACKUP_FILE}" "Backing up certificate to ${BACKUP_FILE}")"
   if ! cp "$OUTPUT_FILE" "$BACKUP_TMP" || ! chmod 600 "$BACKUP_TMP" \
     || ! mv "$BACKUP_TMP" "$BACKUP_FILE"; then
     rm -f "$BACKUP_TMP"
-    fail 1 "备份旧证书失败，未替换 bundle"
+    fail 1 "$(cb_msg '备份旧证书失败，未替换 bundle' 'Certificate backup failed; bundle was not replaced')"
   fi
 fi
 
 if [ "$RESTART_NGINX" = "yes" ]; then
-  printf '%s\n' "$OUTPUT_FILE" > "$PENDING_FILE" || fail 1 "无法记录 nginx 待应用状态"
+  printf '%s\n' "$OUTPUT_FILE" > "$PENDING_FILE" || fail 1 "$(cb_msg '无法记录 nginx 待应用状态' 'Cannot record pending nginx state')"
 fi
 mv "$TEMP_BUNDLE" "$OUTPUT_FILE" || {
   rm -f "$TEMP_BUNDLE"
   [ "$RESTART_NGINX" != "yes" ] || rm -f "$PENDING_FILE"
-  fail 1 "写入 ${OUTPUT_FILE} 失败"
+  fail 1 "$(cb_msg "写入 ${OUTPUT_FILE} 失败" "Cannot write ${OUTPUT_FILE}")"
 }
-log "✅ 新证书已写入 ${OUTPUT_FILE}"
+log "$(cb_msg "✅ 新证书已写入 ${OUTPUT_FILE}" "Certificate written to ${OUTPUT_FILE}")"
 
 # ---------------------------------------------------------------------------
 # 重启 nginx 让 webGUI 生效
 # ---------------------------------------------------------------------------
 
 if [ "$RESTART_NGINX" = "yes" ]; then
-  log "重启 nginx..."
+  log "$(cb_msg '重启 nginx...' 'Restarting nginx...')"
   if [ -x "$NGINX_RC" ] && "$NGINX_RC" restart >/dev/null 2>&1; then
-    rm -f "$PENDING_FILE" || fail 1 "无法清除 nginx 待应用状态"
-    log "✅ nginx 已重启"
+    rm -f "$PENDING_FILE" || fail 1 "$(cb_msg '无法清除 nginx 待应用状态' 'Cannot clear pending nginx state')"
+    log "$(cb_msg '✅ nginx 已重启' 'nginx restarted')"
   else
-    fail 2 "nginx 重启失败，证书待应用，下次续期会重试"
+    fail 2 "$(cb_msg 'nginx 重启失败，证书待应用，下次续期会重试' 'nginx restart failed; certificate is pending and the next renewal will retry')"
   fi
 else
-  log "已跳过 nginx 重启，新证书将在下次重启 web 服务后生效"
+  log "$(cb_msg '已跳过 nginx 重启，新证书将在下次重启 web 服务后生效' 'nginx restart skipped; the certificate will apply on the next web service restart')"
 fi
 
 EXPIRY=$(openssl x509 -noout -enddate -in "$OUTPUT_FILE" 2>/dev/null | cut -d= -f2)
-log "✅ 完成，证书到期时间：${EXPIRY:-未知}"
-record_history "success" "${DOMAIN_ARRAY[*]}" "Certificate updated; expires ${EXPIRY:-unknown}"
+log "$(cb_msg "✅ 完成，证书到期时间：${EXPIRY:-未知}" "Complete; certificate expires: ${EXPIRY:-unknown}")"
+record_history "success" "${DOMAIN_ARRAY[*]}" "$(cb_msg "证书已更新，到期时间 ${EXPIRY:-未知}" "Certificate updated; expires ${EXPIRY:-unknown}")"
 exit 0

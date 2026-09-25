@@ -571,6 +571,14 @@ function cbDevCloseBox() {
 function closeBox() { cbDevCloseBox(); }
 
 document.addEventListener('DOMContentLoaded', function () {
+  var configForm = document.getElementById('cb-config-form');
+  if (configForm && !configForm.querySelector('input[name="csrf_token"]')) {
+    var token = document.createElement('input');
+    token.type = 'hidden';
+    token.name = 'csrf_token';
+    token.value = 'dev-preview-token';
+    configForm.appendChild(token);
+  }
   // 真机上「应用」按钮有改动才启用
   function enableApply(form) {
     if (!form) return;

@@ -97,7 +97,7 @@ tail -n 1 "$SANDBOX/boot/config/plugins/unraid-certbot/history.tsv" | grep -q $'
 CB_DOCKER="$SANDBOX/bin/docker" "$ROOT/dev.sh" renew --no-seed > "$WORK/retry.log" 2>&1 \
   || fail 'pending nginx restart did not recover'
 [ ! -e "$SANDBOX/boot/config/plugins/unraid-certbot/nginx.pending" ] || fail 'pending marker remained'
-tail -n 1 "$SANDBOX/boot/config/plugins/unraid-certbot/history.tsv" | grep -q 'Pending nginx restart applied' \
+tail -n 1 "$SANDBOX/boot/config/plugins/unraid-certbot/history.tsv" | grep -q '待处理的 nginx 重启已完成' \
   || fail 'nginx recovery missing from history'
 
 BUNDLE="$SANDBOX/boot/config/ssl/certs/tower_unraid_bundle.pem"
@@ -138,7 +138,8 @@ done
 
 PORT=$((20000 + RANDOM % 20000))
 printf 'armed\n' > "$WORK/cron-fail"
-CB_DEV_LOCALE=en_US CB_DEV_CRON_FAIL_ONCE="$WORK/cron-fail" CB_DOCKER="$SANDBOX/bin/docker" php -d disable_functions=_ -S "127.0.0.1:$PORT" \
+printf 'armed\n' > "$WORK/cron-skipped"
+CB_DEV_LOCALE=en_US CB_DEV_CRON_FAIL_ONCE="$WORK/cron-fail" CB_DEV_CRON_SKIP_ONCE="$WORK/cron-skipped" CB_DOCKER="$SANDBOX/bin/docker" php -d disable_functions=_ -S "127.0.0.1:$PORT" \
   -t "$SANDBOX/usr/local/emhttp" "$ROOT/dev/server.php" > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 URL="http://127.0.0.1:$PORT/plugins/unraid-certbot/include/update.php"
@@ -218,6 +219,10 @@ rm "$WORK/cron-fail"
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&SCHEDULE=weekly&CF_API_TOKEN_CLEAR=yes" "$URL")"
 json_ok false "$RESPONSE" || fail 'clear-token cron failure returned success'
 [ "$(cksum "$CFG" "$CRED" "$CRON")" = "$BEFORE" ] || fail 'clear-token cron failure did not restore all files'
+rm "$WORK/cron-skipped"
+RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&SCHEDULE=weekly" "$URL")"
+json_ok false "$RESPONSE" || fail 'silent cron write failure returned success'
+[ "$(cksum "$CFG" "$CRED" "$CRON")" = "$BEFORE" ] || fail 'silent cron write failure did not restore files'
 
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=zh_CN" "$URL")"
 json_ok true "$RESPONSE" || fail 'Chinese override save failed'
@@ -255,6 +260,17 @@ ZH_LOG="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=log")"
 [[ "$ZH_LOG" == *"日志超过 1 MiB 时会自动截断"* ]] || fail 'Chinese log preview not translated'
 ZH_ACTION="$(curl -sS "http://127.0.0.1:$PORT/plugins/unraid-certbot/include/exec.php?action=unsupported")"
 [[ "$ZH_ACTION" == *"不支持的操作"* ]] || fail 'Chinese action dialog not translated'
+ACTION_URL="http://127.0.0.1:$PORT/plugins/unraid-certbot/include/exec.php"
+ACTION_BOOT="$(curl -fsS "$ACTION_URL?action=status")"
+[[ "$ACTION_BOOT" == *'method="post"'* && "$ACTION_BOOT" == *'name="csrf_token"'* \
+    && "$ACTION_BOOT" != *'运行模式'* ]] || fail 'GET action executed or omitted CSRF bootstrap'
+[ "$(curl -sS -o /dev/null -w '%{http_code}' -X PUT "$ACTION_URL")" = 405 ] \
+  || fail 'action endpoint accepted PUT'
+[ "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' \
+  -d 'action=status&csrf_token=probe' "$ACTION_URL")" = 403 ] || fail 'cross-origin action accepted'
+ACTION_STATUS="$(curl -fsS -H "$ORIGIN" -d 'action=status&csrf_token=probe' "$ACTION_URL")"
+[[ "$ACTION_STATUS" == *'addLog('* && "$ACTION_STATUS" != *'method="post"'* ]] \
+  || fail 'POST status action failed'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=en_US" "$URL")"
 json_ok true "$RESPONSE" && [[ "$RESPONSE" == *'Settings saved'* ]] || fail 'English override save failed'
 EN_OVERRIDE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
@@ -263,6 +279,13 @@ EN_OVERRIDE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=sta
 EN_CONFIG="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=config")"
 [[ "$EN_CONFIG" == *'<option value="en_US" selected>English</option>'* ]] \
   || fail 'English override selection not shown'
+EN_STATUS="$(CB_DEV_ROOT="$SANDBOX" CB_DOCKER="$SANDBOX/bin/docker" \
+  "$SANDBOX/usr/local/emhttp/plugins/unraid-certbot/scripts/renew.sh" --status)"
+[[ "$EN_STATUS" == *'Certificate directory check'* && "$EN_STATUS" != *'证书目录体检'* ]] \
+  || fail 'English override not applied to renewal diagnostics'
+EN_ACTION="$(curl -fsS -H "$ORIGIN" -d 'action=status&csrf_token=probe' "$ACTION_URL")"
+[[ "$EN_ACTION" == *'Certificate directory check'* && "$EN_ACTION" != *'证书目录体检'* ]] \
+  || fail 'English action output mixed languages'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=auto" "$URL")"
 json_ok true "$RESPONSE" || fail 'follow-Unraid restore failed'
 AUTO_ZH="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"

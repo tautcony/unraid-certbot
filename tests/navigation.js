@@ -55,13 +55,20 @@ async function page(path) {
       *[Symbol.iterator]() { yield ['UI_LANGUAGE', 'zh_CN']; }
     },
     URLSearchParams,
+    AbortController,
     fetch: (_url, options) => {
       assert.equal(options.method, 'POST');
       assert.equal(options.body.get('UI_LANGUAGE'), 'zh_CN');
+      if (fetchResponse === null) {
+        return new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(new DOMException('Timed out', 'AbortError')));
+        });
+      }
       return Promise.resolve({ok: true, json: () => Promise.resolve(fetchResponse)});
     },
     requestAnimationFrame: () => {},
-    setTimeout: callback => { timers.push(callback); }
+    setTimeout: callback => { timers.push(callback); return callback; },
+    clearTimeout: callback => { const i = timers.indexOf(callback); if (i >= 0) timers.splice(i, 1); }
   };
   vm.createContext(context);
   vm.runInContext(script, context);
@@ -97,6 +104,14 @@ async function page(path) {
   view.context.cbHistoryPage(2);
   assert.equal(new URL(view.location.href).searchParams.get('history_page'), '2',
     'history pagination opens the requested page');
+
+  view = await page('/Settings/unraid-certbot?tab=config');
+  await view.submit(null);
+  assert.equal(view.button.disabled, true, 'pending save disables Apply');
+  view.timers[0]();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(view.button.disabled, false, 'timed out save allows another attempt');
+  assert.match(view.panel.children[0].textContent, /timed out/, 'timeout gives actionable feedback');
 
   view = await page('/Settings/unraid-certbot?tab=config');
   await view.submit({ok: false, message: 'Settings not saved', details: ['Invalid setting']});

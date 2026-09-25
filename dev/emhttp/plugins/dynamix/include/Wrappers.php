@@ -116,17 +116,22 @@ if (!function_exists('parse_cron_cfg')) {
         $file = cb_dev_path("/boot/config/plugins/{$plugin}/{$name}.cron");
         if (trim((string)$text) === '') {
             @unlink($file);
-            return true;
+            return null;
         }
         @mkdir(dirname($file), 0700, true);
         $text = rtrim((string)$text, "\n") . "\n";
+        $skipOnce = (string)getenv('CB_DEV_CRON_SKIP_ONCE');
+        if ($skipOnce !== '' && !is_file($skipOnce)) {
+            @file_put_contents($skipOnce, '1');
+            return null;
+        }
         $ok = @file_put_contents($file, $text, LOCK_EX) !== false;
         $failOnce = (string)getenv('CB_DEV_CRON_FAIL_ONCE');
         if ($failOnce !== '' && !is_file($failOnce)) {
             @file_put_contents($failOnce, '1');
             return false;
         }
-        return $ok;
+        return $ok ? null : false;
     }
 }
 

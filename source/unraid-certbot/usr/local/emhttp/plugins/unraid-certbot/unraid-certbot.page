@@ -247,10 +247,13 @@ if (cbConfigForm) {
     var button = cbConfigForm.querySelector('input[type="submit"]');
     if (button) { button.disabled = true; }
     cbSaveResult(false, <?=json_encode(cb_t('Saving settings...'), JSON_UNESCAPED_UNICODE)?>, false, null, true);
+    var controller = new AbortController();
+    var timeout = setTimeout(function () { controller.abort(); }, 30000);
     fetch(cbConfigForm.action, {
       method: 'POST',
       body: new URLSearchParams(new FormData(cbConfigForm)),
       credentials: 'same-origin',
+      signal: controller.signal,
       headers: {'Accept': 'application/json'}
     }).then(function (response) {
       if (!response.ok) { throw new Error('HTTP ' + response.status); }
@@ -259,10 +262,15 @@ if (cbConfigForm) {
       if (!result || typeof result.ok !== 'boolean') { throw new Error('Invalid save response'); }
       cbSaveResult(result.ok, result.message, true, result.details);
       if (!result.ok) { cbSaving = false; if (button) { button.disabled = false; } }
-    }).catch(function () {
-      cbSaveResult(false, <?=json_encode(cb_t('Settings not saved'), JSON_UNESCAPED_UNICODE)?>, false);
+    }).catch(function (error) {
+      cbSaveResult(false,
+        error && error.name === 'AbortError'
+          ? <?=json_encode(cb_t('Settings save timed out. Reload to confirm before trying again.'), JSON_UNESCAPED_UNICODE)?>
+          : <?=json_encode(cb_t('Settings not saved'), JSON_UNESCAPED_UNICODE)?>, false);
       cbSaving = false;
       if (button) { button.disabled = false; }
+    }).finally(function () {
+      clearTimeout(timeout);
     });
   });
 }

@@ -93,6 +93,25 @@ function cb_cron_text(string $schedule, string $time, string $script): string
     return "$minute $hour {$days[$schedule]} $script --quiet --trigger=cron >/dev/null 2>&1\n";
 }
 
+function cb_apply_cron(string $text): bool
+{
+    $path = CB_CFG_DIR . '/renew.cron';
+    if (parse_cron_cfg('unraid-certbot', 'renew', $text) === false) {
+        return false;
+    }
+    if ($text === '' ? is_file($path) : @file_get_contents($path) !== $text) {
+        return false;
+    }
+    if (cb_dev_root() !== '') {
+        return true;
+    }
+    exec('crontab -c /etc/cron.d -l 2>/dev/null', $entries, $rc);
+    $installed = implode("\n", $entries);
+    return $text === ''
+        ? $rc <= 1 && strpos($installed, CB_PLUGIN_DIR . '/scripts/renew.sh') === false
+        : $rc === 0 && strpos($installed, rtrim($text, "\n")) !== false;
+}
+
 function cb_restore_file(string $path, $previous): bool
 {
     if ($previous === null) {
@@ -294,10 +313,10 @@ if ($save) {
             if ($save && (!@rename($cfgTmp, $cfgFile)
                 || ($newToken !== '' && !@rename($credTmp, $cbCredFile))
                 || ($clearTok && is_file($cbCredFile) && !@unlink($cbCredFile))
-                || parse_cron_cfg('unraid-certbot', 'renew', $cron) === false)) {
+                || !cb_apply_cron($cron))) {
                 $cfgRestored = cb_restore_file($cfgFile, $oldCfg);
                 $credRestored = cb_restore_file($cbCredFile, $oldCred);
-                $cronRestored = parse_cron_cfg('unraid-certbot', 'renew', $oldCron) !== false;
+                $cronRestored = cb_apply_cron($oldCron);
                 $restored = $cfgRestored && $credRestored && $cronRestored;
                 cb_error($restored ? cb_t('Save failed and previous configuration restored')
                     : cb_t('Save and recovery failed, check the configuration directory'));
