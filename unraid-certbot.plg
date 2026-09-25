@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "unraid-certbot">
 <!ENTITY author    "tautcony">
-<!ENTITY version   "2026.09.15">
+<!ENTITY version   "2026.09.25">
 <!ENTITY launch    "Settings/UnraidCertbot">
 <!ENTITY github    "tautcony/unraid-certbot">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/master/&name;.plg">
@@ -19,6 +19,11 @@
         project="https://github.com/&github;">
 
 <CHANGES>
+###2026.09.25
+- 加固配置保存、证书路径、续期锁和日志输出的安全边界
+- 修复证书写入与 nginx 重启失败后的恢复流程
+- 续期历史增加居中分页，运行日志打开后定位到最新内容
+- 调整设置页布局，并在插件列表中显示功能简介
 ###2026.09.15
 - 修正日志数据刷新
 - 修复设置表单布局异常
@@ -43,8 +48,8 @@ exit 0
 
 <FILE Name="/boot/config/plugins/&name;/&pkgfile;" Run="upgradepkg --install-new">
 <URL>https://github.com/&github;/releases/download/&version;/&pkgfile;</URL>
-<MD5>79b59b76bb1577d8e58fd695f4414a2e</MD5>
-<SHA256>ed8b4ad6071a478b8a0460bff38f5f0872254512d0cb0e4404d9b1e54564c074</SHA256>
+<MD5>189502b595ea675b81fd037b9c7fadad</MD5>
+<SHA256>ba4d27bbc872284b2bcab760593949f74f9b55d54b64ecca2dd48745bd75d7e0</SHA256>
 </FILE>
 
 <FILE Run="/bin/bash">
