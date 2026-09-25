@@ -1,0 +1,24 @@
+VERSION
+  s_bff3263727ba09::t_263acf13dd624c 1
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/README.md
+  s_bff3263727ba09::t_263acf13dd624c 1-3
+unraid-certbot.plg
+  s_bff3263727ba09::t_7778d8be14fcf5 51-52
+  s_bff3263727ba09::t_263acf13dd624c 5,22-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4b7b81f5abac1478f6bc6ecbe056c7da7e9a4223",
+  "prompts": {},
+  "sessions": {
+    "s_bff3263727ba09": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d74e-159d-7fa3-837d-636237faeb50",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
