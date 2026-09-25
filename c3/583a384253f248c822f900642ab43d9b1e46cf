@@ -1,0 +1,19 @@
+tests/build-reproducibility.sh
+  s_55aceb992fb041::t_7b2e9d8c80e3d6 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c3583a384253f248c822f900642ab43d9b1e46cf",
+  "prompts": {},
+  "sessions": {
+    "s_55aceb992fb041": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d875-876f-71d1-bd71-a3759b4cf3da",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
