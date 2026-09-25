@@ -82,7 +82,7 @@ Source is under `source/unraid-certbot/` and maps to `/usr/local/emhttp/` on Unr
 
 See [dev/README.md](dev/README.md) for the local sandbox.
 
-Push a `YYYY.MM.DD` tag to let GitHub Actions build and publish a release. Version tags must use this format.
+Push a `YYYY.MM.DD` tag to let GitHub Actions build and publish a release. To compare the local package with CI, commit the source and `VERSION` first, then run `./build.sh` from that commit. Both builds use the same pinned packaging image. Docker is required for local builds.
 
 ## License
 

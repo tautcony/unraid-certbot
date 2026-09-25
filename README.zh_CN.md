@@ -82,7 +82,7 @@ tail -50 /boot/config/plugins/unraid-certbot/certbot.log
 
 本地调试与沙箱结构见 [dev/README.md](dev/README.md)。
 
-发布：推送 `YYYY.MM.DD` 格式的 tag，由 GitHub Actions 自动打包并创建 Release。版本号必须使用该格式。
+发布：先提交源码、构建脚本和 `VERSION`，再从这个提交运行 `./build.sh`，即可与 CI 的包比较 SHA256。推送 `YYYY.MM.DD` 格式的 tag 后，GitHub Actions 从同一提交重新打包并创建 Release。本地构建需要 Docker；两边使用同一个固定镜像。
 
 ## 许可
 

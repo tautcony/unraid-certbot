@@ -1,5 +1,6 @@
 /build/
 /dist/
+__pycache__/
 
 # 本地调试沙箱（dev/seed.sh 生成）
 /dev/run/

@@ -3,16 +3,13 @@
 # unraid-certbot 打包脚本
 #
 #   ./build.sh              # 用 VERSION 文件里的版本号打包
-#   ./build.sh 2026.10.01   # 指定版本号打包（会写回 VERSION 文件）
+#   ./build.sh 2026.10.01   # 指定版本号打包（需与已提交的 VERSION 一致）
 #
 # 产出：
 #   dist/unraid-certbot-<版本>-noarch-1.txz   上传到 GitHub Release
 #   unraid-certbot.plg                        已填入版本号与校验和
 #
-# 装到 Unraid 上的方式（二选一）：
-#   1) 把 dist/*.txz 传到 GitHub Release（tag 用版本号），再把 .plg 推到仓库 main 分支
-#   2) 不用 Release：把 dist/*.txz 提交到仓库里，然后把 .plg 里的 <URL> 改成
-#      https://raw.githubusercontent.com/<你>/unraid-certbot/main/dist/<文件名>
+# 发布：先提交源码、build.sh 和 VERSION，再运行本脚本；从同一提交打 tag。
 #
 set -euo pipefail
 
@@ -27,12 +24,15 @@ PLG="${ROOT}/${NAME}.plg"
 # 版本号
 # ---------------------------------------------------------------------------
 
-if [ "${1:-}" != "" ]; then
-  VERSION="$1"
-elif [ -f "${ROOT}/VERSION" ]; then
+if [ -f "${ROOT}/VERSION" ]; then
   VERSION="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
 else
-  echo "错误：没有 VERSION 文件，也没有传入版本号" >&2
+  echo "错误：没有 VERSION 文件" >&2
+  exit 1
+fi
+
+if [ "${1:-$VERSION}" != "$VERSION" ]; then
+  echo "错误：先将版本号写入 VERSION 并提交，再运行 build.sh" >&2
   exit 1
 fi
 
@@ -41,10 +41,11 @@ if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$'; then
   exit 1
 fi
 
-if [ "${1:-}" != "" ]; then
-  version_tmp="$(mktemp "${ROOT}/.VERSION.XXXXXX")"
-  printf '%s\n' "$VERSION" > "$version_tmp"
-  mv "$version_tmp" "${ROOT}/VERSION"
+# 构建输入必须已经提交；否则发布提交后时间锚点会发生变化。
+if ! git -C "$ROOT" diff --quiet HEAD -- source/"$NAME" build.sh VERSION tools/package.py ||
+   [ -n "$(git -C "$ROOT" ls-files --others --exclude-standard -- source/"$NAME" tools/package.py)" ]; then
+  echo "错误：先提交源码、构建脚本和 VERSION 的变更，再打包" >&2
+  exit 1
 fi
 
 PKG="${NAME}-${VERSION}-noarch-1.txz"
@@ -59,8 +60,9 @@ echo "==> 打包 ${NAME} ${VERSION}"
 rm -rf "${ROOT}/build"
 mkdir -p "$STAGE" "$DIST"
 
-# Slackware 包的内容就是「相对根目录的文件树」
-cp -R "${SRC}/usr" "$STAGE/"
+# Slackware 包的内容来自提交本身，避免本机忽略文件混入包。
+git -C "$ROOT" archive HEAD "source/${NAME}/usr" | \
+  tar -xf - -C "$STAGE" --strip-components=2
 
 PLUGIN_ON_ROOT="${STAGE}/usr/local/emhttp/plugins/${NAME}"
 [ -d "$PLUGIN_ON_ROOT" ] || { echo "错误：源码树结构不对，缺少 ${PLUGIN_ON_ROOT}" >&2; exit 1; }
@@ -109,28 +111,14 @@ chmod 0755 "${STAGE}/install/doinst.sh"
 # 打 tar.xz
 # ---------------------------------------------------------------------------
 
-# tar 会记录每个条目的 mtime；统一为当前提交的 committer 时间，重跑同一提交不变。
-COMMIT_TIME="$(TZ=UTC git -C "$ROOT" log -1 --format=%cd --date=format-local:%Y%m%d%H%M.%S HEAD)"
-[ -n "$COMMIT_TIME" ] || { echo "错误：无法获取当前提交时间" >&2; exit 1; }
-TZ=UTC find "$STAGE" -exec touch -h -t "$COMMIT_TIME" {} +
-
-# 显式指定条目顺序，避免文件系统遍历顺序影响 tar 字节流。
-FILE_LIST="${ROOT}/build/archive-files"
-(cd "$STAGE" && find . -print0 | LC_ALL=C sort -z) > "$FILE_LIST"
-
-# 优先用 GNU tar；macOS 上可能是 gtar，也可能是支持 --format=gnutar 的 bsdtar
-TAR="tar"
-if command -v gtar >/dev/null 2>&1; then
-  TAR="gtar"
-fi
-
-TAR_FORMAT="gnu"
-if ! "$TAR" --format=gnu -cf /dev/null --files-from /dev/null 2>/dev/null; then
-  TAR_FORMAT="gnutar"
-fi
-
-"$TAR" --format="${TAR_FORMAT}" --owner=0 --group=0 --numeric-owner \
-  --no-recursion --null -cJf "${DIST}/${PKG}" -C "$STAGE" -T "$FILE_LIST"
+# 宿主机只传入暂存树；固定镜像统一写出 tar.xz 字节。
+COMMIT_EPOCH="$(git -C "$ROOT" log -1 --format=%ct HEAD -- source/"$NAME" build.sh VERSION tools/package.py)"
+[ -n "$COMMIT_EPOCH" ] || { echo "错误：无法获取构建输入的提交时间" >&2; exit 1; }
+command -v docker >/dev/null 2>&1 || { echo "错误：打包需要 Docker" >&2; exit 1; }
+PACKAGE_IMAGE="python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d"
+COPYFILE_DISABLE=1 tar --no-xattrs -cf - -C "$STAGE" . | \
+  docker run --rm -i --platform linux/amd64 -v "${ROOT}:/repo:ro" -w /repo \
+    "$PACKAGE_IMAGE" python3 tools/package.py "$COMMIT_EPOCH" > "${DIST}/${PKG}"
 
 # ---------------------------------------------------------------------------
 # 校验和
@@ -165,7 +153,7 @@ mv "${PLG}.tmp" "$PLG"
 # ---------------------------------------------------------------------------
 
 echo "==> 包内容："
-"$TAR" -tJf "${DIST}/${PKG}" | sort | sed 's/^/    /'
+tar -tJf "${DIST}/${PKG}" | sort | sed 's/^/    /'
 
 if ! grep -q "<MD5>${MD5}</MD5>" "$PLG"; then
   echo "警告：.plg 里的 MD5 没被正确替换，请检查模板" >&2
@@ -175,10 +163,10 @@ echo ""
 echo "✅ 完成"
 echo ""
 echo "接下来："
-echo "  1. 把 dist/${PKG} 上传到 GitHub Release，tag 用 ${VERSION}"
-echo "  2. 提交并推送 ${NAME}.plg 到 main 分支"
+echo "  1. 核对本地包的 SHA256；tag 必须指向本次构建输入所在提交"
+echo "  2. 推送 ${VERSION} tag，由 CI 从同一提交重新打包并发布"
 echo "  3. Unraid 上的安装地址："
-echo "     https://raw.githubusercontent.com/tautcony/${NAME}/main/${NAME}.plg"
+echo "     https://raw.githubusercontent.com/tautcony/${NAME}/master/${NAME}.plg"
 echo ""
 echo "本地自检："
 echo "  bash -n source/${NAME}/usr/local/emhttp/plugins/${NAME}/scripts/renew.sh"
