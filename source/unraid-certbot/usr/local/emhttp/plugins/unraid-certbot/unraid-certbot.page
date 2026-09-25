@@ -53,7 +53,7 @@ $historyPage = max(1, (int)($_GET['history_page'] ?? 1));
 
 <!-- ======================= 设置 ======================= -->
 <div id="cb-pane-config" class="cb-pane"<?=$tab === 'config' ? '' : ' style="display:none"'?>>
-<blockquote id="cb-update-result" class="inline_help" style="display:none"></blockquote>
+<blockquote id="cb-update-result" class="inline_help" aria-live="polite" style="display:none"></blockquote>
 <?php cb_form($cfg, $missing); ?>
 </div>
 
@@ -127,7 +127,7 @@ function cbEnableApply(form) {
   });
 }
 function cbMarkDirty(form) {
-  if (form && form.querySelector('input[name="#apply"]')) { cbDirty = true; }
+  if (form && form.id === 'cb-config-form') { cbDirty = true; }
 }
 document.addEventListener('input',  function (e) { cbEnableApply(e.target.form); cbMarkDirty(e.target.form); }, true);
 document.addEventListener('change', function (e) { cbEnableApply(e.target.form); cbMarkDirty(e.target.form); }, true);
@@ -212,15 +212,57 @@ function cbBindHelp() {
 }
 cbBindHelp();
 
-// 保存结束后：显示结果。
-function cbSaveResult(ok, msg, reload) {
+// 保存结果保持在设置页内，避免依赖 Unraid 的隐藏 progressFrame。
+function cbSaveResult(ok, msg, reload, details) {
   var panel = document.getElementById('cb-update-result');
   if (panel) {
     panel.style.display = 'block';
-    panel.innerHTML = '<b>' + (msg || (ok ? '<?=cb_t('Settings saved')?>' : '<?=cb_t('Settings not saved')?>')) + '</b>';
+    panel.textContent = '';
+    var heading = document.createElement('b');
+    heading.textContent = msg || (ok ? <?=json_encode(cb_t('Settings saved'), JSON_UNESCAPED_UNICODE)?> : <?=json_encode(cb_t('Settings not saved'), JSON_UNESCAPED_UNICODE)?>);
+    panel.appendChild(heading);
+    if (Array.isArray(details) && details.length) {
+      var list = document.createElement('ul');
+      details.forEach(function (detail) {
+        var item = document.createElement('li');
+        item.textContent = String(detail);
+        list.appendChild(item);
+      });
+      panel.appendChild(list);
+    }
   }
   if (!ok) { return; }
   cbDirty = false;
   if (reload !== false) { setTimeout(function () { cbReload(true); }, 1200); }
+}
+
+var cbConfigForm = document.getElementById('cb-config-form');
+if (cbConfigForm) {
+  var cbSaving = false;
+  cbConfigForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    if (cbSaving) { return; }
+    cbSaving = true;
+    var button = cbConfigForm.querySelector('input[type="submit"]');
+    if (button) { button.disabled = true; }
+    cbSaveResult(false, <?=json_encode(cb_t('Saving settings...'), JSON_UNESCAPED_UNICODE)?>, false);
+    fetch(cbConfigForm.action, {
+      method: 'POST',
+      body: new FormData(cbConfigForm),
+      credentials: 'same-origin',
+      headers: {'Accept': 'application/json'}
+    }).then(function (response) {
+      if (!response.ok) { throw new Error('HTTP ' + response.status); }
+      return response.json();
+    }).then(function (result) {
+      if (!result || typeof result.ok !== 'boolean') { throw new Error('Invalid save response'); }
+      cbSaveResult(result.ok, result.message, true, result.details);
+      if (!result.ok) { cbSaving = false; if (button) { button.disabled = false; } }
+    }).catch(function () {
+      cbSaveResult(false, <?=json_encode(cb_t('Settings not saved'), JSON_UNESCAPED_UNICODE)?>, false);
+      cbSaving = false;
+      if (button) { button.disabled = false; }
+    });
+  });
 }
 </script>

@@ -24,6 +24,19 @@ async function page(path) {
 
   const location = {href: origin + path};
   const timers = [];
+  const listeners = {};
+  const button = {disabled: false};
+  const form = {
+    id: 'cb-config-form', action: origin + '/plugins/unraid-certbot/include/update.php',
+    querySelector: () => button,
+    addEventListener: (name, listener) => { listeners[name] = listener; }
+  };
+  const panel = {
+    style: {}, children: [],
+    set textContent(value) { this.children = []; this._text = value; },
+    appendChild(child) { this.children.push(child); }
+  };
+  let fetchResponse;
   location.assign = url => { location.href = url; };
   location.replace = url => { location.href = url; };
   const context = {
@@ -34,14 +47,27 @@ async function page(path) {
       readyState: 'complete',
       addEventListener: () => {},
       querySelectorAll: () => [],
-      getElementById: () => null
+      getElementById: id => id === 'cb-config-form' ? form : id === 'cb-update-result' ? panel : null,
+      createElement: () => ({children: [], appendChild(child) { this.children.push(child); }})
+    },
+    FormData: class { constructor(source) { assert.equal(source, form); } },
+    fetch: (_url, options) => {
+      assert.equal(options.method, 'POST');
+      return Promise.resolve({ok: true, json: () => Promise.resolve(fetchResponse)});
     },
     requestAnimationFrame: () => {},
     setTimeout: callback => { timers.push(callback); }
   };
   vm.createContext(context);
   vm.runInContext(script, context);
-  return {context, location, timers};
+  return {
+    context, location, timers, button, panel,
+    async submit(response) {
+      fetchResponse = response;
+      listeners.submit({preventDefault() {}});
+      await new Promise(resolve => setImmediate(resolve));
+    }
+  };
 }
 
 (async () => {
@@ -68,9 +94,12 @@ async function page(path) {
     'history pagination opens the requested page');
 
   view = await page('/Settings/unraid-certbot?tab=config');
-  view.context.cbSaveResult(false, 'Settings not saved');
+  await view.submit({ok: false, message: 'Settings not saved', details: ['Invalid setting']});
   assert.equal(view.timers.length, 0, 'failed save does not reload');
-  view.context.cbSaveResult(true, 'Settings saved');
+  assert.equal(view.button.disabled, false, 'failed save allows another attempt');
+  assert.equal(view.panel.children[0].textContent, 'Settings not saved', 'save feedback is visible on the page');
+  assert.equal(view.panel.children[1].children[0].textContent, 'Invalid setting', 'save error is visible');
+  await view.submit({ok: true, message: 'Settings saved', details: []});
   assert.equal(view.timers.length, 1, 'successful save schedules reload');
   view.timers[0]();
   assert.equal(new URL(view.location.href).searchParams.get('_saved'), '1',

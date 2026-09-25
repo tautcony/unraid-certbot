@@ -337,7 +337,7 @@ th{color:var(--gray-500);font-weight:normal;}
 #footer .cb-theme-switch{display:inline-flex;align-items:center;gap:.4rem;}
 #footer .cb-theme-switch button{min-width:auto;margin:0;padding:.2rem .8rem;font-size:1rem;letter-spacing:1px;border-radius:3px;}
 
-/* 预览专用：提示条、openBox 弹窗、保存进度框 */
+/* 预览专用：提示条、openBox 弹窗 */
 .devbar{background:var(--shade-bg-color);color:var(--alt-text-color);border-bottom:1px solid var(--border-color);border-left:3px solid var(--brand-orange);padding:.6rem 1rem;font-size:1.2rem;}
 .devbar a{color:var(--brand-orange);}
 .cb-dev-error{background:var(--red-100);color:var(--red-900);border:1px solid var(--red-300);padding:1.2rem;border-radius:4px;white-space:pre-wrap;font-family:var(--font-bitstream);font-size:1.2rem;}
@@ -346,13 +346,6 @@ th{color:var(--gray-500);font-weight:normal;}
 .cb-dev-box-head{background:var(--mild-background-color);color:var(--text-color);padding:.8rem 1.2rem;display:flex;align-items:center;gap:1.2rem;font-size:1.3rem;border-bottom:1px solid var(--border-color);}
 .cb-dev-box-head button{margin:0 0 0 auto;padding:.4rem 1.2rem;font-size:1.1rem;}
 .cb-dev-box iframe{border:0;flex:1;width:100%;background:var(--background-color);}
-#cb-dev-progress{position:fixed;right:2rem;bottom:4rem;width:760px;max-width:92vw;height:440px;background:var(--background-color);border:1px solid var(--border-color);border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden;z-index:9998;}
-#cb-dev-progress[hidden]{display:none;}
-#cb-dev-progress .head{background:var(--mild-background-color);color:var(--text-color);padding:.8rem 1.2rem;display:flex;align-items:center;gap:1.2rem;font-size:1.3rem;border-bottom:1px solid var(--border-color);}
-#cb-dev-progress .head .msg{font-weight:bold;}
-#cb-dev-progress .head button{margin:0 0 0 auto;padding:.4rem 1.2rem;font-size:1.1rem;}
-#cb-dev-progress .head button+button{margin-left:.4rem;}
-#cb-dev-progress iframe{border:0;flex:1;width:100%;background:var(--background-color);}
 
 /* 覆盖插件 .page 自带的内联样式。放在正文之后，靠顺序生效，不需要 !important */
 .cb-table{width:100%;border-collapse:collapse;background-color:transparent;}
@@ -533,15 +526,6 @@ function cb_dev_chrome(array $head, string $body, array $ctx = []): string
   </div>
 </footer>
 
-<div id="cb-dev-progress" hidden>
-  <div class="head">
-    <span class="msg">保存进度</span>
-    <button type="button" onclick="location.reload()">刷新页面</button>
-    <button type="button" onclick="document.getElementById('cb-dev-progress').hidden = true">关闭</button>
-  </div>
-  <iframe name="progressFrame" id="progressFrame" title="保存进度"></iframe>
-</div>
-
 <script>
 (function () {
   var forced = {$themeForced};
@@ -586,14 +570,6 @@ function cbDevCloseBox() {
 }
 function closeBox() { cbDevCloseBox(); }
 
-function cbUpdateDone(ok, msg) {
-  var panel = document.getElementById('cb-dev-progress');
-  if (!panel) return;
-  panel.hidden = false;
-  var t = panel.querySelector('.msg');
-  if (t) t.textContent = msg || (ok ? '设置已保存' : '设置未保存');
-}
-
 document.addEventListener('DOMContentLoaded', function () {
   // 真机上「应用」按钮有改动才启用
   function enableApply(form) {
@@ -602,14 +578,6 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   document.addEventListener('input',  function (e) { enableApply(e.target.form); });
   document.addEventListener('change', function (e) { enableApply(e.target.form); });
-  document.addEventListener('submit', function () {
-    var panel = document.getElementById('cb-dev-progress');
-    if (panel) {
-      panel.hidden = false;
-      var t = panel.querySelector('.msg');
-      if (t) t.textContent = '正在保存…';
-    }
-  });
 });
 </script>
 </body>

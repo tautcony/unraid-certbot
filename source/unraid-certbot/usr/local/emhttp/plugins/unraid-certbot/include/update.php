@@ -10,8 +10,7 @@
 $docroot = $docroot ?? ($_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp');
 require_once "$docroot/plugins/dynamix/include/Wrappers.php";
 
-// 阻止 status.php 在 CLI 下打印摘要 —— 此处 stdout 用于界面 addLog，
-// 混入其他输出会破坏设置保存流程。
+// 阻止 status.php 在 CLI 下打印摘要，保持 JSON 响应有效。
 define('CB_NO_CLI_OUTPUT', true);
 require_once "$docroot/plugins/unraid-certbot/include/status.php";
 
@@ -19,7 +18,7 @@ require_once "$docroot/plugins/unraid-certbot/include/status.php";
 $cbPluginDir = CB_PLUGIN_DIR;
 $cbCfgDir    = CB_CFG_DIR;
 $cbCredFile  = CB_CRED_FILE;
-header('Content-Type: text/html; charset=utf-8');
+header('Content-Type: application/json; charset=utf-8');
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
@@ -36,20 +35,28 @@ if ($sourceHost === null || $requestHost === null || strcasecmp($sourceHost, $re
     exit;
 }
 
-echo '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>';
-if (is_file("$docroot/logging.htm")) {
-    readfile("$docroot/logging.htm");
-} else {
-    echo '<pre id="log"></pre><script>function addLog(s){document.getElementById("log").textContent+=s+"\n"}</script>';
+function cb_messages(?string $add = null): array
+{
+    static $messages = [];
+    if ($add !== null) {
+        $messages[] = $add;
+    }
+    return $messages;
 }
 
-/** 将一行消息输出至界面日志框 */
 function cb_say(string $msg, string $prefix = ''): void
 {
-    $encoded = json_encode(htmlspecialchars($prefix . $msg, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
-        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
-    echo "<script>addLog({$encoded});</script>";
-    @flush();
+    cb_messages($prefix . $msg);
+}
+
+function cb_finish(bool $saved): void
+{
+    echo json_encode([
+        'ok' => $saved,
+        'message' => cb_t($saved ? 'Settings saved' : 'Settings not saved'),
+        'details' => cb_messages(),
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
+    exit;
 }
 
 /**
@@ -114,12 +121,16 @@ foreach ($_POST as $key => $value) {
     }
 }
 if (cb_errors() !== []) {
-    cb_say(cb_t('Settings not saved, correct the errors above'));
-    echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult(false,'
-       . json_encode(cb_t('Settings not saved'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)
-       . ');}</script></body></html>';
-    exit;
+    cb_finish(false);
 }
+
+$uiLanguage = (string)($_POST['UI_LANGUAGE'] ?? 'auto');
+if (!in_array($uiLanguage, ['auto', 'zh_CN', 'en_US'], true)) {
+    cb_error(cb_t('Invalid interface language'));
+} else {
+    $GLOBALS['cb_ui_language_override'] = $uiLanguage;
+}
+$_POST['UI_LANGUAGE'] = $uiLanguage;
 
 // ---------------------------------------------------------------------------
 // 域名：规范化后写回 $_POST，确保写入 .cfg 的值符合规范
@@ -243,12 +254,6 @@ if (!preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/', $scheduleTime)) {
 $_POST['SCHEDULE'] = $schedule;
 $_POST['SCHEDULE_TIME'] = $scheduleTime;
 
-$uiLanguage = (string)($_POST['UI_LANGUAGE'] ?? 'auto');
-if (!in_array($uiLanguage, ['auto', 'zh_CN', 'en_US'], true)) {
-    cb_error(cb_t('Invalid interface language'));
-}
-$_POST['UI_LANGUAGE'] = $uiLanguage;
-
 $save = cb_errors() === [];
 if ($save) {
     if (!is_dir($cbCfgDir) && !@mkdir($cbCfgDir, 0700, true)) {
@@ -304,12 +309,4 @@ if ($save) {
     }
 }
 
-if ($save) {
-    $GLOBALS['cb_ui_language_override'] = $uiLanguage;
-}
-cb_say($save ? cb_t('Settings saved') : cb_t('Settings not saved, correct the errors above'));
-echo '<script>if(window.parent&&typeof parent.cbSaveResult==="function"){parent.cbSaveResult('
-   . ($save ? 'true' : 'false') . ','
-   . json_encode(cb_t($save ? 'Settings saved' : 'Settings not saved'),
-       JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)
-   . ');}</script></body></html>';
+cb_finish($save);

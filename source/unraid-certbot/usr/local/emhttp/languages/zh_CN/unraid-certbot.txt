@@ -21,6 +21,7 @@ Show=显示
 Hide=隐藏
 Settings saved=设置已保存
 Settings not saved=设置未保存
+Saving settings=正在保存设置...
 Check and renew=检查并续期
 Check and renew now=立即检查并续期
 Force renewal=强制续期

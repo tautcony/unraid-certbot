@@ -19,7 +19,7 @@ function cb_form(array $cfg, array $fail = []): void
 </blockquote>
 <?php endif; ?>
 
-<form method="POST" action="/plugins/<?=$cb?>/include/update.php" target="progressFrame">
+<form id="cb-config-form" method="POST" action="/plugins/<?=$cb?>/include/update.php">
 
 <dl>
   <dt><?=cb_t('Interface language')?></dt>
@@ -128,7 +128,7 @@ function cb_form(array $cfg, array $fail = []): void
   </dd>
 </dl>
 
-<p class="cb-apply-action"><input type="submit" name="#apply" value="<?=cb_t('Apply')?>" disabled></p>
+<p class="cb-apply-action"><input type="submit" value="<?=cb_t('Apply')?>" disabled></p>
 </form>
 <?php
 }

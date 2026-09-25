@@ -149,8 +149,20 @@
 }
 
 /* ---------- 设置表单 ---------- */
+#cb-update-result {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 1rem;
+}
 .cb-apply-action {
   text-align: center;
+}
+.cb-apply-action input[type="submit"] {
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 16px;
 }
 .cb-actions input[type="button"] {
   margin-right: 8px;

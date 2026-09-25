@@ -161,20 +161,31 @@ fi
 
 BODY='DOMAINS=example.com&ACME_EMAIL=admin@example.com&UNRAID_HOSTNAME=tower&PROPAGATION=60&CERT_DIR=/mnt/user/appdata/letsencrypt&SCHEDULE=daily&SCHEDULE_TIME=01:14&RESTART_NGINX=yes&STAGING=no'
 ORIGIN="Origin: http://127.0.0.1:$PORT"
+json_ok() {
+  local expected="$1" response="$2"
+  printf '%s' "$response" | php -r '
+    $result = json_decode(stream_get_contents(STDIN), true);
+    exit(is_array($result) && isset($result["ok"]) && $result["ok"] === ($argv[1] === "true") ? 0 : 1);
+  ' "$expected"
+}
+CONFIG_PAGE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=config")"
+[[ "$CONFIG_PAGE" == *'id="cb-config-form"'* && "$CONFIG_PAGE" != *'target="progressFrame"'* \
+   && "$CONFIG_PAGE" != *'name="#apply"'* ]] || fail 'settings form still uses progressFrame'
 BEFORE="$(cksum "$CFG" "$CRED")"
-RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&LOCK_DIR=/boot&DOCKER=/bad&CF_API_TOKEN_NEW=abcdefghijabcdefghij" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'unknown POST key accepted'
+RESPONSE="$(curl -fsS -D "$WORK/update.headers" -H "$ORIGIN" -d "$BODY&LOCK_DIR=/boot&DOCKER=/bad&CF_API_TOKEN_NEW=abcdefghijabcdefghij" "$URL")"
+rg -iq '^Content-Type: application/json' "$WORK/update.headers" || fail 'save response is not JSON'
+json_ok false "$RESPONSE" || fail 'unknown POST key accepted'
 [ "$(cksum "$CFG" "$CRED")" = "$BEFORE" ] || fail 'invalid POST changed config or token'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&CF_API_TOKEN_CLEAR=yes&ACME_EMAIL=invalid" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'invalid clear-token POST accepted'
+json_ok false "$RESPONSE" || fail 'invalid clear-token POST accepted'
 [ "$(cksum "$CFG" "$CRED")" = "$BEFORE" ] || fail 'invalid clear-token POST changed config or token'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY" --data-urlencode '#file=other/other.cfg' "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'forged #file accepted'
+json_ok false "$RESPONSE" || fail 'forged #file accepted'
 [ "$(cksum "$CFG" "$CRED")" = "$BEFORE" ] || fail 'forged #file changed config or token'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY" --data-urlencode '#include=/plugins/other/update.php' "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'forged #include accepted'
+json_ok false "$RESPONSE" || fail 'forged #include accepted'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&CERT_DIR=%2F" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'root cert directory accepted'
+json_ok false "$RESPONSE" || fail 'root cert directory accepted'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY" \
   --data-urlencode $'ACME_EMAIL=</script><script>alert(1)</script>\\\r\n汉字' "$URL")"
 [[ "$RESPONSE" != *'</script><script>alert(1)'* ]] || fail 'script escaped into response'
@@ -182,30 +193,30 @@ RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY" \
 [ "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -d "$BODY" "$URL")" = 403 ] \
   || fail 'cross-origin POST accepted'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(true'* ]] || fail 'valid POST failed'
+json_ok true "$RESPONSE" || fail 'valid POST failed'
 if grep -Eq '^(LOCK_DIR|DOCKER)=' "$CFG"; then fail 'unknown cfg key survived save'; fi
 CRON="$SANDBOX/boot/config/plugins/unraid-certbot/renew.cron"
 BEFORE="$(cksum "$CFG" "$CRED" "$CRON")"
 rm "$WORK/cron-fail"
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&SCHEDULE=weekly&CF_API_TOKEN_NEW=abcdefghijabcdefghij" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'cron failure returned success'
+json_ok false "$RESPONSE" || fail 'cron failure returned success'
 [ "$(cksum "$CFG" "$CRED" "$CRON")" = "$BEFORE" ] || fail 'cron failure did not restore all files'
 rm "$WORK/cron-fail"
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&SCHEDULE=weekly&CF_API_TOKEN_CLEAR=yes" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'clear-token cron failure returned success'
+json_ok false "$RESPONSE" || fail 'clear-token cron failure returned success'
 [ "$(cksum "$CFG" "$CRED" "$CRON")" = "$BEFORE" ] || fail 'clear-token cron failure did not restore all files'
 
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=zh_CN" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(true'* ]] || fail 'Chinese override save failed'
+json_ok true "$RESPONSE" || fail 'Chinese override save failed'
 ZH_OVERRIDE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
 [[ "$ZH_OVERRIDE" == *'>证书状态</button>'* && "$ZH_OVERRIDE" == *'<b>证书正常</b>'* ]] \
   || fail 'Chinese override ignored on English host'
 BEFORE="$(cksum "$CFG")"
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=invalid" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(false'* ]] || fail 'invalid interface language accepted'
+json_ok false "$RESPONSE" || fail 'invalid interface language accepted'
 [ "$(cksum "$CFG")" = "$BEFORE" ] || fail 'invalid interface language changed configuration'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=auto" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(true'* ]] || fail 'follow-Unraid save failed'
+json_ok true "$RESPONSE" || fail 'follow-Unraid save failed'
 AUTO_EN="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
 [[ "$AUTO_EN" == *'>Certificate Status</button>'* ]] || fail 'follow-Unraid did not restore English'
 
@@ -232,7 +243,7 @@ ZH_LOG="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=log")"
 ZH_ACTION="$(curl -sS "http://127.0.0.1:$PORT/plugins/unraid-certbot/include/exec.php?action=unsupported")"
 [[ "$ZH_ACTION" == *"不支持的操作"* ]] || fail 'Chinese action dialog not translated'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=en_US" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(true'* && "$RESPONSE" == *'Settings saved'* ]] || fail 'English override save failed'
+json_ok true "$RESPONSE" && [[ "$RESPONSE" == *'Settings saved'* ]] || fail 'English override save failed'
 EN_OVERRIDE="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
 [[ "$EN_OVERRIDE" == *'>Certificate Status</button>'* && "$EN_OVERRIDE" == *'<b>Certificate valid</b>'* ]] \
   || fail 'English override ignored on Chinese host'
@@ -240,7 +251,7 @@ EN_CONFIG="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=confi
 [[ "$EN_CONFIG" == *'<option value="en_US" selected>English</option>'* ]] \
   || fail 'English override selection not shown'
 RESPONSE="$(curl -fsS -H "$ORIGIN" -d "$BODY&UI_LANGUAGE=auto" "$URL")"
-[[ "$RESPONSE" == *'cbSaveResult(true'* ]] || fail 'follow-Unraid restore failed'
+json_ok true "$RESPONSE" || fail 'follow-Unraid restore failed'
 AUTO_ZH="$(curl -fsS "http://127.0.0.1:$PORT/Settings/unraid-certbot?tab=status")"
 [[ "$AUTO_ZH" == *'>证书状态</button>'* ]] || fail 'follow-Unraid did not restore Chinese'
 
