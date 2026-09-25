@@ -1,0 +1,107 @@
+dev/server.php
+  s_bff3263727ba09::t_bed12905a7ac5f 80-81,158-168
+  s_bff3263727ba09::t_c0b93c8bf5f789 9
+  s_bff3263727ba09::t_fc595f2d821b5c 169
+dev/bin/rc.nginx
+  s_bff3263727ba09::t_51aef1303118fd 3-6
+tests/fixtures/cp
+  s_bff3263727ba09::t_24bd1533b8e1eb 1-7
+tests/fixtures/mv
+  s_bff3263727ba09::t_24bd1533b8e1eb 1-8
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/exec.php
+  s_bff3263727ba09::t_ae25ec0f6ad7d5 71-72
+  s_bff3263727ba09::t_02253a123a291f 73
+dev/bin/flock
+  s_bff3263727ba09::t_eef10de076dfe6 1-4
+README.zh_CN.md
+  s_bff3263727ba09::t_4685d5967804ef 85
+dev/bin/docker
+  s_bff3263727ba09::t_9b5850c8fb7307 133-135,140-142
+  s_bff3263727ba09::t_7e4e6161d4f4b3 136-139,143-146,160-161,163-165
+  s_bff3263727ba09::t_859bd5a1837dd5 91-93
+  s_bff3263727ba09::t_24bd1533b8e1eb 155-158
+dev/seed.sh
+  s_bff3263727ba09::t_712fdf93aec322 176
+  s_bff3263727ba09::t_ae25ec0f6ad7d5 21-23,31-35
+  s_bff3263727ba09::t_7e4e6161d4f4b3 15-20,24-30,36-41,54-55,59-61,81-82,84,98,151,156,160-161,164-165
+  h_3705811fa4502c 5-7,42,100,129
+  s_bff3263727ba09::t_eef10de076dfe6 80,105-106,108
+  s_bff3263727ba09::t_9b5850c8fb7307 56-58
+  s_bff3263727ba09::t_4a4b17f5655cfe 3,101-104,114
+dev/emhttp/logging.htm
+  s_bff3263727ba09::t_02253a123a291f 27-30,34-39
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/scripts/renew.sh
+  s_bff3263727ba09::t_17c1e50eda6d40 515-519
+  s_bff3263727ba09::t_29596837e17478 327-329,333-334,351-352
+  s_bff3263727ba09::t_9b5850c8fb7307 348-350
+  s_bff3263727ba09::t_0cb5e7d8e67418 43,225,227
+  s_bff3263727ba09::t_2d0e4756593796 47,249-265,269-276,364-370,388
+  s_bff3263727ba09::t_fb7c069271ac48 335,502-503,505-509,512-514
+  s_bff3263727ba09::t_c0619f62ad538d 216,219-223,229-234,238
+  s_bff3263727ba09::t_7251fefbd037e2 469-470,472-481,486-494,529,532
+  s_bff3263727ba09::t_d9e65cef9c70cd 266-268
+lint.sh
+  s_bff3263727ba09::t_bed12905a7ac5f 32
+  s_bff3263727ba09::t_52c775d60f91c4 62-66
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/update.php
+  s_bff3263727ba09::t_17c1e50eda6d40 285-288
+  s_bff3263727ba09::t_ae25ec0f6ad7d5 49-50,184,187-188
+  s_bff3263727ba09::t_9376e81cccc48d 22-27,38-44,51,106-112,114,190-191,199
+  s_bff3263727ba09::t_ea0a62b6d44c6c 79-105,233-234,264-266,273-275,277-281,284,289
+  s_bff3263727ba09::t_859bd5a1837dd5 116-120
+  s_bff3263727ba09::t_7bbe03b74e8777 28-37
+  s_bff3263727ba09::t_e1574b7c40a808 113
+  s_bff3263727ba09::t_cc9e27b7969b6a 115,221-228,232,235-242,244-248,250-263,267-272,276,282-283,290-294,298,300
+  s_bff3263727ba09::t_147cd505436c7e 121
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/config-keys.txt
+  s_bff3263727ba09::t_0cb5e7d8e67418 1-9
+README.md
+  s_bff3263727ba09::t_4685d5967804ef 85
+dev/emhttp/plugins/dynamix/include/Wrappers.php
+  s_bff3263727ba09::t_ea0a62b6d44c6c 81-87
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/config-form.php
+  s_bff3263727ba09::t_02253a123a291f 22
+build.sh
+  s_bff3263727ba09::t_51a5bd228ae13d 40
+  s_bff3263727ba09::t_7e4e6161d4f4b3 44-47
+  s_bff3263727ba09::t_bc959ec67080ff 48-49
+tests/regression.sh
+  s_bff3263727ba09::t_51aef1303118fd 72-73,82-86,89-91,125,153
+  s_bff3263727ba09::t_c46f6689840459 115,118
+  s_bff3263727ba09::t_99daddd81a7c8a 74-80,87-88,92-93,154,156
+  s_bff3263727ba09::t_b0ab06773c314d 127-128,162-171
+  s_bff3263727ba09::t_17c1e50eda6d40 107
+  s_bff3263727ba09::t_38d0257e7b254a 31-36,63-70
+  s_bff3263727ba09::t_967e6fbe424d88 140,143-148,159-161
+  s_bff3263727ba09::t_52c775d60f91c4 1-9,14-25,37-39,46-50,52,54,56-62,81,126,129-138,141,151-152,155,157-158,172-173
+  s_bff3263727ba09::t_0cb5e7d8e67418 10-13
+  s_bff3263727ba09::t_c0619f62ad538d 71
+  s_bff3263727ba09::t_859bd5a1837dd5 40-41,45,111-114,116-117,119-124
+  s_bff3263727ba09::t_24bd1533b8e1eb 26-30,42-44,51,94-106,108-110,149-150
+  s_bff3263727ba09::t_712fdf93aec322 53,55,139,142
+source/unraid-certbot/usr/local/emhttp/plugins/unraid-certbot/include/status.php
+  s_bff3263727ba09::t_02253a123a291f 40-41,43-68,77-84
+  s_bff3263727ba09::t_0cb5e7d8e67418 42
+  s_bff3263727ba09::t_d9e65cef9c70cd 69-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "40c2a6079faa418c3d5a1de0e6b585c0a99e8eb2",
+  "prompts": {},
+  "humans": {
+    "h_3705811fa4502c": {
+      "author": "TautCony <i@tautcony.xyz>"
+    }
+  },
+  "sessions": {
+    "s_bff3263727ba09": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d74e-159d-7fa3-837d-636237faeb50",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "TautCony <i@tautcony.xyz>"
+    }
+  }
+}
