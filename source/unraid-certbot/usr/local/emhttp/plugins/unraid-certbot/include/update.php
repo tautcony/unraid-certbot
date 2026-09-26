@@ -99,17 +99,13 @@ function cb_apply_cron(string $text): bool
     if (parse_cron_cfg('unraid-certbot', 'renew', $text) === false) {
         return false;
     }
-    if ($text === '' ? is_file($path) : @file_get_contents($path) !== $text) {
-        return false;
+    if ($text === '') {
+        // An empty schedule must remove the managed cron entry.
+        return !is_file($path);
     }
-    if (cb_dev_root() !== '') {
-        return true;
-    }
-    exec('crontab -c /etc/cron.d -l 2>/dev/null', $entries, $rc);
-    $installed = implode("\n", $entries);
-    return $text === ''
-        ? $rc <= 1 && strpos($installed, CB_PLUGIN_DIR . '/scripts/renew.sh') === false
-        : $rc === 0 && strpos($installed, rtrim($text, "\n")) !== false;
+    // parse_cron_cfg() updates Unraid's managed cron configuration. Verify
+    // the managed file rather than querying BusyBox's unrelated user crontab.
+    return @file_get_contents($path) === $text;
 }
 
 function cb_restore_file(string $path, $previous): bool
